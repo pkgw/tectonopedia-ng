@@ -24,8 +24,8 @@ onMounted(async () => {
 
   const txn = fedb.transaction("identity", "readonly");
   const store = txn.objectStore("identity");
-  let pubKey = await store.get("publicKey");
-  let privKey = await store.get("privateKey");
+  let pubKey = await store.get("publicKeyEd25519");
+  let privKey = await store.get("privateKeyEd25519");
   await txn.done;
   console.log("check keypair:", pubKey, privKey);
 
@@ -41,8 +41,8 @@ onMounted(async () => {
     const txn = fedb.transaction("identity", "readwrite");
     const store = txn.objectStore("identity");
     console.log("generated keypair:", pubKey, privKey);
-    await store.put(pubKey, "publicKey");
-    await store.put(privKey, "privateKey");
+    await store.put(pubKey, "publicKeyEd25519");
+    await store.put(privKey, "privateKeyEd25519");
     await txn.done;
   }
 });
