@@ -7115,20 +7115,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"nuxt-app@workspace:.":
-  version: 0.0.0-use.local
-  resolution: "nuxt-app@workspace:."
-  dependencies:
-    "@nuxt/eslint": "npm:1.9.0"
-    "@nuxt/ui": "npm:3.3.3"
-    eslint: "npm:^9.0.0"
-    nuxt: "npm:^4.1.1"
-    typescript: "npm:^5.6.3"
-    vue: "npm:^3.5.21"
-    vue-router: "npm:^4.5.1"
-  languageName: unknown
-  linkType: soft
-
 "nuxt@npm:^4.1.1":
   version: 4.1.1
   resolution: "nuxt@npm:4.1.1"
@@ -9194,6 +9180,20 @@ __metadata:
   checksum: 10c0/9c4759110a19c53f992d9aae23aac5ced636e99887b51b9e61def52611732872ff7668757d4e4c61f19691e36f4da981cd9485e869b4a7408d689f6bf1f14e62
   languageName: node
   linkType: hard
+
+"ttpedia-frontend@workspace:.":
+  version: 0.0.0-use.local
+  resolution: "ttpedia-frontend@workspace:."
+  dependencies:
+    "@nuxt/eslint": "npm:1.9.0"
+    "@nuxt/ui": "npm:3.3.3"
+    eslint: "npm:^9.0.0"
+    nuxt: "npm:^4.1.1"
+    typescript: "npm:^5.6.3"
+    vue: "npm:^3.5.21"
+    vue-router: "npm:^4.5.1"
+  languageName: unknown
+  linkType: soft
 
 "type-check@npm:^0.4.0, type-check@npm:~0.4.0":
   version: 0.4.0
