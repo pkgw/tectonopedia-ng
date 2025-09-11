@@ -40,6 +40,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@automerge/automerge-codemirror@npm:^0.2.0":
+  version: 0.2.0
+  resolution: "@automerge/automerge-codemirror@npm:0.2.0"
+  dependencies:
+    "@automerge/automerge": "npm:^3.0.0"
+    "@codemirror/state": "npm:^6.0.0"
+    "@codemirror/view": "npm:^6.0.0"
+    codemirror: "npm:^6.0.0"
+  checksum: 10c0/d21a4b67dcce74a0ed81804bd8ea93b2faf4ecedf72ea2adf1c79fff95bd310bf5a558a47595f70310be10be74aed86df5252151dd66b8c4f5c7546fd51be0dc
+  languageName: node
+  linkType: hard
+
 "@automerge/automerge-repo-network-websocket@npm:^2.2.0":
   version: 2.2.0
   resolution: "@automerge/automerge-repo-network-websocket@npm:2.2.0"
@@ -79,7 +91,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@automerge/automerge@npm:2.2.8 - 3":
+"@automerge/automerge@npm:2.2.8 - 3, @automerge/automerge@npm:^3.0.0":
   version: 3.1.1
   resolution: "@automerge/automerge@npm:3.1.1"
   checksum: 10c0/1731cc7f29f16109705dfc8d7ea777702c454a3554e471a2d6fc5b45413ed59f6f0fada7c57ab8a9921144360f067f8bebecb4911f9193e1242c095cdbbf5335
@@ -4418,7 +4430,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"codemirror@npm:^6.0.2":
+"codemirror@npm:^6.0.0, codemirror@npm:^6.0.2":
   version: 6.0.2
   resolution: "codemirror@npm:6.0.2"
   dependencies:
@@ -9685,6 +9697,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "ttpedia-frontend@workspace:."
   dependencies:
+    "@automerge/automerge-codemirror": "npm:^0.2.0"
     "@automerge/automerge-repo": "npm:^2.2.0"
     "@automerge/automerge-repo-network-websocket": "npm:^2.2.0"
     "@automerge/automerge-repo-storage-indexeddb": "npm:^2.2.0"

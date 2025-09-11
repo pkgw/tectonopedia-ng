@@ -11,6 +11,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
 import CodeMirror from "vue-codemirror6";
+import { automergeSyncPlugin } from "@automerge/automerge-codemirror";
 import type { DocumentId } from "@automerge/automerge-repo";
 
 interface MinimalDoc {
@@ -20,14 +21,14 @@ interface MinimalDoc {
 const editorContent = ref("This is some text");
 
 const WS_URL = "ws://127.0.0.1:20800/";
-const DOC_ID = "43W6zUkkrKdtpuB4Adqo2DwZF1tA";
+const DOC_ID = "43W6zUkkrKdtpuB4Adqo2DwZF1tA" as DocumentId;
 
 onMounted(async () => {
   const keypair = await useKeypair();
   const repo = useRepo(WS_URL);
 
   // NB: very important to stringify the content here!
-  const handle = await repo.find<MinimalDoc>(DOC_ID as DocumentId);
+  const handle = await repo.find<MinimalDoc>(DOC_ID);
   editorContent.value = `${handle.doc().content}`;
 });
 
