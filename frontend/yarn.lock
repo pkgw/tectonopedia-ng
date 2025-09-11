@@ -9703,6 +9703,7 @@ __metadata:
     nuxt: "npm:^4.1.1"
     style-mod: "npm:^4.1.2"
     typescript: "npm:^5.6.3"
+    vite: "npm:^7.1.4"
     vite-plugin-top-level-await: "npm:^1.6.0"
     vite-plugin-wasm: "npm:^3.5.0"
     vue: "npm:^3.5.21"
