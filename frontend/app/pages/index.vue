@@ -21,11 +21,18 @@ interface MinimalDoc {
   content: string
 }
 
-const editorContent = ref("This is some text");
+const editorContent = ref("");
 const editorExtensions: Ref<Extension[]> = ref([]);
 
+// Sample Rust source => 2BoTCivmRyvhiiKaMHMHB99Peerm
+// index.tex => tsquNfquQC6eLNYP7ZmgmNkbwXP
+// dump.tex => gxhZkppeZEXBb7LXnwvHWEuavAd
+// end.tex => 25spacqQwZqMUBMkrCJB1ot1EmGq
+// message.tex => 3huRDC2cWvQhEeFxezP58NWxnMk9
+// why-tex.tex => 3XuSpKARAcsShsAFTZBJKBxwjRsz
+
 const WS_URL = "ws://127.0.0.1:20800/";
-const DOC_ID = "2BoTCivmRyvhiiKaMHMHB99Peerm" as DocumentId;
+const DOC_ID = "gxhZkppeZEXBb7LXnwvHWEuavAd" as DocumentId;
 
 onMounted(async () => {
   const keypair = await useKeypair();
