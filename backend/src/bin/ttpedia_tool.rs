@@ -1,18 +1,10 @@
 //! Miscellaneous utilities for ttpedia.
 
 use anyhow::Result;
-use automerge::Automerge;
+use automerge::{Automerge, ObjType, ROOT, transaction::Transactable};
 use clap::Parser;
 use samod::{Repo, storage::TokioFilesystemStorage};
-use serde::Serialize;
-use serde_automerge::ser::Serializer;
 use std::path::PathBuf;
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct MinimalDoc {
-    pub content: String,
-}
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -54,11 +46,13 @@ impl ImportCommand {
 
         let content = std::fs::read_to_string(&self.input)?;
 
+        // Note: serde-automerge serializes String to immutable strings, not
+        // Text, so we have to populate the document manually.
         let mut doc = Automerge::new();
-        doc.transact(|txn| {
-            content
-                .serialize(Serializer::new_root(txn, "content"))
-                .map(|_| ())
+        doc.transact(|txn| -> Result<()> {
+            let text = txn.put_object(ROOT, "content", ObjType::Text)?;
+            txn.splice_text(&text, 0, 0, &content)?;
+            Ok(())
         })
         .map_err(|f| f.error)?;
 
