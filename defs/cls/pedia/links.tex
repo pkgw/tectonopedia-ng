@@ -1,0 +1,17 @@
+% Copyright 2022-2023 the Tectonic Project
+% Licensed under the MIT License
+%
+% Creating hyperlinks. Documentation in `~/txt/pedia/links.tex`
+%
+\RequirePackage{hyperref}
+%
+\renewcommand{\href}[2]{%
+  \special{tdux:mfs a^^J%
+Dtarget _blank^^J%
+Dhref #1}#2\special{tdux:me a}%
+}
+%
+\newcommand{\hrefInternal}[2]{%
+  \special{tdux:mfs a^^J%
+Dhref #1}#2\special{tdux:me a}%
+}

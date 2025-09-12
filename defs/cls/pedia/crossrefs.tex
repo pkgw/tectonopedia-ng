@@ -1,0 +1,25 @@
+% Copyright 2022-2023 the Tectonic Project
+% Licensed under the MIT License
+%
+% Cross-references among Tectonopedia pages. Documentation in `~/txt/pedia/crossrefs.tex`.
+%
+\newcommand{\pediaLogRef}[3]{%
+  \immediate\write\pediaIndex{\string\iref{#1}{#2}{#3}}%
+}
+%
+\newcommand{\pediaEnsureRefCS}[3]{%
+  \unless\ifcsname pedia resolve**#1**#2**#3\endcsname
+    \expandafter\def\csname pedia resolve**#1**#2**#3\endcsname{?}%
+  \fi
+}
+%
+\newcommand{\pediaLinkRef}[2]{%
+  \pediaLogRef{#1}{#2}{lt}%
+  \pediaEnsureRefCS{#1}{#2}{loc}%
+  \pediaEnsureRefCS{#1}{#2}{text tex}%
+  \hrefInternal{%
+    \pediaRelTop\csname pedia resolve**#1**#2**loc\endcsname%
+   }{%
+    \csname pedia resolve**#1**#2**text tex\endcsname%
+   }%
+}

@@ -1,0 +1,52 @@
+% Copyright 2022-2023 the Tectonic Project
+% Licensed under the MIT License
+%
+% Articles in the "explainer" category.  Documentation in
+% `~/txt/pedia/explainers.tex`.
+%
+%  TODO: massive duplication with other page types!!!!
+\makeatletter
+%
+\newcommand{\Explainer}[1]{%
+  % finish a previous output, if needed:
+  \pedia@maybeEmit
+
+  % save the slug:
+  \def\tmp@b{#1}%
+
+  % This is the stuff we can do with just the slug:
+  \tduxSetupOutput{template.html}{explain/#1/index.html}
+  \@pedia@emitNeededtrue
+  \def\pediaRelTop{../../}
+  \immediate\write\pediaIndex{\string\output{explain/#1/index.html}}
+  \immediate\write\pediaIndex{\string\idef{explainers}{#1}{}}
+  % This parses the second argument (the TeX title), places it in
+  % \pedia@maybeVerbatimToks, and then evaluates \explainer@tailA
+  \pediaPassOneVerbatim\explainer@tailA
+}
+\newcommand{\explainer@tailA}{%
+  % Render the explainer title. On pass 1 it will have been parsed verbatim,
+  % so any TeX constructs will appear literally. This is fine since we don't
+  % actually use the pass 1 HTML!
+  \pediaTitle{\the\pedia@maybeVerbatimToks}%
+  %
+  \pedia@titletmp=\pedia@maybeVerbatimToks
+  \pediaScanVerbatim\explainer@tailB
+}
+\newcommand{\explainer@tailB}{%
+  % The point of all of the verbatim gymnastics: we can emit the "text" of the
+  % explainer as the literal TeX code that the user provided, rather than whatever
+  % that code expands to.
+  \immediate\write\pediaIndex{\string\itext{explainers}{\tmp@b}{\the\pedia@titletmp}{\the\pedia@maybeVerbatimToks}}
+
+  % Finally we can also set the page title
+  \tduxSetTemplateVariable{pediaTitle}{\the\pedia@maybeVerbatimToks}
+  \tduxSetTemplateVariable{pediaBookName}{Tectonopedia: Explainers}
+}
+\makeatother
+%
+% \explain{ENTRY}
+%  Create an internal link to an explainer, identified by its slug.
+\newcommand{\explain}[1]{%
+  \pediaLinkRef{explainers}{#1}%
+}

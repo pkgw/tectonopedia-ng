@@ -1,0 +1,54 @@
+% Copyright 2022-2023 the Tectonic Project
+% Licensed under the MIT License
+%
+% Encyclopedia "entries": individual reference items. Documentation in
+% `~/txt/pedia/entries.tex`.
+%
+\makeatletter
+\newtoks\pedia@titletmp
+%
+\newcommand{\Entry}[1]{%
+  % finish a previous output, if needed:
+  \pedia@maybeEmit
+
+  % save the slug:
+  \def\tmp@b{#1}%
+
+  % This is the stuff we can do with just the slug:
+  \tduxSetupOutput{template.html}{e/#1/index.html}
+  \@pedia@emitNeededtrue
+  \def\pediaRelTop{../../}
+  \immediate\write\pediaIndex{\string\output{e/#1/index.html}}
+  \immediate\write\pediaIndex{\string\idef{entries}{#1}{}}
+  % This parses the second argument (the TeX title), places it in
+  % \pedia@maybeVerbatimToks, and then evaluates \Entry@tailA
+  \pediaPassOneVerbatim\Entry@tailA
+}
+\newcommand{\Entry@tailA}{%
+  % Render the entry title. On pass 1 it will have been parsed verbatim,
+  % so any TeX constructs will appear literally. This is fine since we don't
+  % actually use the pass 1 HTML!
+  \pediaTitle{\the\pedia@maybeVerbatimToks}%
+  %
+  \pedia@titletmp=\pedia@maybeVerbatimToks
+  \pediaScanVerbatim\Entry@tailB
+}
+\newcommand{\Entry@tailB}{%
+  % The point of all of the verbatim gymnastics: we can emit the "text" of the
+  % entry as the literal TeX code that the user provided, rather than whatever
+  % that code expands to.
+  \immediate\write\pediaIndex{\string\itext{entries}{\tmp@b}{\the\pedia@titletmp}{\the\pedia@maybeVerbatimToks}}
+
+  % Finally we can also set the page title. This shows up in non-typeset
+  % metadata, so we have to use the at+plain representation, which means that we
+  % need to decode it first.
+  \pediaAtDecodeVar{\pedia@maybeVerbatimToks}
+  \tduxSetTemplateVariable{pediaTitle}{\pediaAtDecodeResult}
+
+  \tduxSetTemplateVariable{pediaBookName}{Tectonopedia: The Reference}
+}
+\makeatother
+%
+\newcommand{\e}[1]{%
+  \pediaLinkRef{entries}{#1}%
+}
