@@ -30,7 +30,10 @@ impl Args {
 }
 
 fn do_compile(job: Job) -> Result<(), faktory::Error> {
-    println!("got job: {job:?}");
+    let doc_id = job.args()[0].as_str().unwrap();
+    println!("got job {:?} for doc {doc_id}", job.id());
+    let content = job.args()[1].as_str().unwrap();
+    println!("content:\n{content}");
     Ok(())
 }
 

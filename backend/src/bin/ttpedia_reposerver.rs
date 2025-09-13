@@ -5,6 +5,7 @@
 //! files.
 
 use anyhow::Result;
+use automerge::hydrate::Value;
 use axum::{
     Json,
     http::{HeaderValue, Method, header},
@@ -12,7 +13,7 @@ use axum::{
 use clap::Parser;
 use faktory::{Client, Job};
 use futures::lock::Mutex;
-use samod::{PeerId, Repo, storage::TokioFilesystemStorage};
+use samod::{DocumentId, PeerId, Repo, storage::TokioFilesystemStorage};
 use serde::{Deserialize, Serialize};
 use std::{path::PathBuf, sync::Arc};
 use tokio::net::TcpListener;
@@ -105,17 +106,71 @@ struct PostSubmitResponse {
     status: String,
 }
 
+/// `POST /submit`: submit proposed changes to a document. If accepted, they are
+/// sent off to be compiled.
+///
+/// Obviously right now we are not doing any authentication or checking or
+/// anything!!!!
 async fn post_submit_handler(
-    axum::extract::State((_handle, _running_connections, faktory_client)): axum::extract::State<(
+    axum::extract::State((repo, _running_connections, faktory_client)): axum::extract::State<(
         Repo,
         Arc<Mutex<Vec<tokio::task::JoinHandle<()>>>>,
         Arc<Mutex<Client>>,
     )>,
     Json(req): Json<PostSubmitRequest>,
 ) -> Json<PostSubmitResponse> {
+    // Get the content!
+
+    let doc_id: DocumentId = match req.doc_id.parse() {
+        Ok(i) => i,
+        Err(_) => {
+            return Json(PostSubmitResponse {
+                status: format!("illegal document ID {}", req.doc_id),
+            });
+        }
+    };
+
+    let doc_handle = match repo.find(doc_id).await {
+        Ok(Some(dh)) => dh,
+        Ok(None) => {
+            return Json(PostSubmitResponse {
+                status: format!("document {} not found", req.doc_id),
+            });
+        }
+        Err(_) => {
+            return Json(PostSubmitResponse {
+                status: "server shutting down".into(),
+            });
+        }
+    };
+
+    // XXX samod docs suggest running this as blocking
+    let maybe_content = doc_handle.with_document(|doc| {
+        // XXX set heads
+        let mut hdoc = doc.hydrate(None);
+        let cval = hdoc.as_map()?.get("content")?;
+
+        if let Value::Text(ctext) = cval {
+            Some(ctext.to_string())
+        } else {
+            None
+        }
+    });
+
+    let content = match maybe_content {
+        Some(c) => c,
+        None => {
+            return Json(PostSubmitResponse {
+                status: format!("malformatted document {}", req.doc_id),
+            });
+        }
+    };
+
+    // Send the job to Faktory.
+
     let mut client = faktory_client.lock().await;
     client
-        .enqueue(Job::new("compile", vec![req.doc_id]))
+        .enqueue(Job::new("compile", vec![req.doc_id, content]))
         .await
         .expect("oh no Faktory failed");
     println!("queued Faktory job");
