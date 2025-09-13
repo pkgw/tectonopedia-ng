@@ -2,14 +2,16 @@
 #
 # There are no custom-built images here. Instead we use Docker volumes to point
 # generic images at the right resources needed to spin up everything using local
-# builds. To to this, create a `.env` file with the following settings:
+# builds. To do this, create a `.env` file with the following settings:
 #
-# - TTPEDIA_MY_OS: an OS image that can run your debug binaries
+# - TTPEDIA_MY_OS: any basic Docker image that can run your debug Rust binaries
 # - TTPEDIA_DATA_PREFIX: an absolute path where the persistent data volumes will go
 #   Recommended to put them in `./local/data/`.
+# - TTPEDIA_FAKTORY_PASSWORD: a password for Faktory authentication
 #
 # The frontend will be exposed on http://localhost:29080/, the backend web API on
-# http://localhost:29180, the backend WebSockets API on ws://localhost:29180/.
+# http://localhost:29180, the backend WebSockets API on ws://localhost:29180/. The
+# Faktory web UI is exported on its default port 7420.
 
 services:
   repo_server:
@@ -20,6 +22,18 @@ services:
     ports:
       - "29180:29180"
     command: /ttpedia_reposerver /repodata
+    depends_on:
+      - faktory
+
+  faktory:
+    image: contribsys/faktory:1.9.3
+    volumes:
+      - faktory_data:/var/lib/faktory:rw
+    ports:
+      - "7420:7420"
+    environment:
+      FAKTORY_PASSWORD: ${TTPEDIA_FAKTORY_PASSWORD}
+    command:  /faktory -b :7419 -w :7420 -e production
 
   frontend:
     image: node:24
@@ -33,8 +47,15 @@ services:
       NUXT_PUBLIC_REPO_WEBSOCKETS_BASE: ws://localhost:29180/
     command: |
       bash -c "cd /app && yarn dev"
+    depends_on:
+      - repo_server
 
 volumes:
+  faktory_data:
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: ${TTPEDIA_DATA_PREFIX}/faktory_data
   repo_data:
     driver_opts:
       type: "none"
