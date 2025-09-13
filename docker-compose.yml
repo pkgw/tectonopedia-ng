@@ -31,6 +31,17 @@ services:
       timeout: 2s
       retries: 3
 
+  compiler_worker:
+    image: ${TTPEDIA_MY_OS}
+    volumes:
+      - ./backend/target/debug/ttpedia_compilerworker:/ttpedia_compilerworker:ro
+    environment:
+      FAKTORY_URL: "tcp://:${TTPEDIA_FAKTORY_PASSWORD}@faktory:7419"
+    command: /ttpedia_compilerworker
+    depends_on:
+      faktory:
+        condition: service_healthy
+
   repo_server:
     image: ${TTPEDIA_MY_OS}
     volumes:
