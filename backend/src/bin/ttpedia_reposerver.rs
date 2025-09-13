@@ -10,6 +10,7 @@ use axum::{
     http::{HeaderValue, Method, header},
 };
 use clap::Parser;
+use faktory::{Client, Job};
 use futures::lock::Mutex;
 use samod::{PeerId, Repo, storage::TokioFilesystemStorage};
 use serde::{Deserialize, Serialize};
@@ -27,6 +28,9 @@ impl Args {
     async fn exec(self) -> Result<()> {
         let allowed_origin = std::env::var("TTPEDIA_REPO_ALLOWED_ORIGIN")?;
         let allowed_origin = allowed_origin.parse::<HeaderValue>()?;
+
+        let faktory_client = Client::connect_to("tcp://:sdgobugsdkinasd@faktory:7419").await?;
+        let faktory_client = Arc::new(Mutex::new(faktory_client));
 
         let builder = Repo::build_tokio();
         let storage = TokioFilesystemStorage::new(self.data_root);
@@ -49,7 +53,7 @@ impl Args {
                     .allow_headers([header::CONTENT_TYPE]),
             )
             .layer(TraceLayer::new_for_http())
-            .with_state((samod.clone(), running_connections.clone()));
+            .with_state((samod.clone(), running_connections.clone(), faktory_client));
 
         // NB hardcoded testing port
         let listener = TcpListener::bind("0.0.0.0:29180")
@@ -68,9 +72,10 @@ impl Args {
 #[allow(clippy::type_complexity)]
 async fn websocket_handler(
     ws: axum::extract::ws::WebSocketUpgrade,
-    axum::extract::State((handle, running_connections)): axum::extract::State<(
+    axum::extract::State((handle, running_connections, _faktory_client)): axum::extract::State<(
         Repo,
         Arc<Mutex<Vec<tokio::task::JoinHandle<()>>>>,
+        Arc<Mutex<Client>>,
     )>,
 ) -> axum::response::Response {
     ws.on_upgrade(|socket| handle_socket(socket, handle, running_connections))
@@ -91,14 +96,30 @@ async fn handle_socket(
 }
 
 #[derive(Deserialize)]
-struct PostSubmitRequest {}
+struct PostSubmitRequest {
+    doc_id: String,
+}
 
 #[derive(Serialize)]
 struct PostSubmitResponse {
     status: String,
 }
 
-async fn post_submit_handler(Json(_payload): Json<PostSubmitRequest>) -> Json<PostSubmitResponse> {
+async fn post_submit_handler(
+    axum::extract::State((_handle, _running_connections, faktory_client)): axum::extract::State<(
+        Repo,
+        Arc<Mutex<Vec<tokio::task::JoinHandle<()>>>>,
+        Arc<Mutex<Client>>,
+    )>,
+    Json(req): Json<PostSubmitRequest>,
+) -> Json<PostSubmitResponse> {
+    let mut client = faktory_client.lock().await;
+    client
+        .enqueue(Job::new("compile", vec![req.doc_id]))
+        .await
+        .expect("oh no Faktory failed");
+    println!("queued Faktory job");
+
     Json(PostSubmitResponse {
         status: "ok".to_owned(),
     })

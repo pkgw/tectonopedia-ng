@@ -6,10 +6,14 @@ class RepoApi {
         this.base_url = config.public.backendApiBase + "/repo";
     }
 
-    async submit() {
-        const resp = await $fetch(this.base_url + "/submit", {
+    async submit(doc_id: string) {
+        const req: RepoSubmitRequest = {
+            doc_id
+        };
+
+        const resp: RepoSubmitResponse = await $fetch(this.base_url + "/submit", {
             method: "POST",
-            body: {}
+            body: req,
         });
         console.log("submitted:", resp);
     }

@@ -5,12 +5,12 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1"
-axum = { version = "0.8.4", features = ["tracing", "ws"] }
+axum = { version = "0.8.4", features = ["macros", "tracing", "ws"] }
 automerge = "0.6.1"
 clap = { version = "4.5.42", features = ["derive"] }
 #console-subscriber = "0.4"
+faktory = "0.13"
 futures = "0.3.31"
-openat = "0.1"
 samod-core = { path = "../../samod/samod-core" }
 samod = { path = "../../samod/samod", features = [
     "axum",

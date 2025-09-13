@@ -55,7 +55,7 @@ onMounted(async () => {
 });
 
 async function onSubmit() {
-  await useRepoApi().submit();
+  await useRepoApi().submit(DOC_ID);
 }
 
 </script>

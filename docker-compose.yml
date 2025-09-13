@@ -14,17 +14,6 @@
 # Faktory web UI is exported on its default port 7420.
 
 services:
-  repo_server:
-    image: ${TTPEDIA_MY_OS}
-    volumes:
-      - ./backend/target/debug/ttpedia_reposerver:/ttpedia_reposerver:ro
-      - repo_data:/repodata:rw
-    environment:
-      TTPEDIA_REPO_ALLOWED_ORIGIN: http://localhost:29080
-    command: /ttpedia_reposerver /repodata
-    depends_on:
-      - faktory
-
   faktory:
     image: contribsys/faktory:1.9.3
     volumes:
@@ -34,6 +23,26 @@ services:
     environment:
       FAKTORY_PASSWORD: ${TTPEDIA_FAKTORY_PASSWORD}
     command:  /faktory -b :7419 -w :7420 -e production
+    healthcheck:
+      test: [ "CMD", "wget", "-q", "http://:${TTPEDIA_FAKTORY_PASSWORD}@localhost:7420/" ]
+      start_interval: 5s
+      start_period: 60s
+      interval: 90s
+      timeout: 2s
+      retries: 3
+
+  repo_server:
+    image: ${TTPEDIA_MY_OS}
+    volumes:
+      - ./backend/target/debug/ttpedia_reposerver:/ttpedia_reposerver:ro
+      - repo_data:/repodata:rw
+    environment:
+      FAKTORY_URL: "tcp://:${TTPEDIA_FAKTORY_PASSWORD}@faktory:7419"
+      TTPEDIA_REPO_ALLOWED_ORIGIN: http://localhost:29080
+    command: /ttpedia_reposerver /repodata
+    depends_on:
+      faktory:
+        condition: service_healthy
 
   backend_facade:
     image: nginx:1.29
