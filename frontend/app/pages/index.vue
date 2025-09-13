@@ -2,6 +2,8 @@
   <div>
     <h1>Welcome to the editor</h1>
 
+    <UButton loading-auto @click="onSubmit">Submit</UButton>
+
     <ClientOnly>
       <code-mirror :basic="true" v-model="editorContent" :extensions="editorExtensions" />
     </ClientOnly>
@@ -9,6 +11,7 @@
 </template>
 
 <script setup lang="ts">
+
 import { ref, onMounted } from "vue";
 import type { Ref } from "vue";
 import type { Extension } from "@codemirror/state";
@@ -38,7 +41,7 @@ const DOC_ID = "gxhZkppeZEXBb7LXnwvHWEuavAd" as DocumentId;
 onMounted(async () => {
   const config = useRuntimeConfig();
   const keypair = await useKeypair();
-  const repo = useRepo(config.public.repoWebsocketsBase);
+  const repo = useRepo(config.public.repoWebsocketsUrl);
 
   const handle = await repo.find<MinimalDoc>(DOC_ID);
   await handle.whenReady();
@@ -50,5 +53,9 @@ onMounted(async () => {
     automergeSyncPlugin({handle, path: ["content"]}),
   ];
 });
+
+async function onSubmit() {
+  await useRepoApi().submit();
+}
 
 </script>

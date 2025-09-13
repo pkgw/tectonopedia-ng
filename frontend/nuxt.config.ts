@@ -17,7 +17,8 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     public: {
-      repoWebsocketsBase: "http://localhost:29100/"
+      backendApiBase: "http://localhost:29100/ttpapi1",
+      repoWebsocketsUrl: "ws://localhost:29100/ttpapi1/repo/sync",
     }
-  }
+  },
 })

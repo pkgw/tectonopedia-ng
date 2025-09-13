@@ -5,14 +5,17 @@
 //! files.
 
 use anyhow::Result;
-use axum::Json;
+use axum::{
+    Json,
+    http::{HeaderValue, Method, header},
+};
 use clap::Parser;
 use futures::lock::Mutex;
 use samod::{PeerId, Repo, storage::TokioFilesystemStorage};
 use serde::{Deserialize, Serialize};
 use std::{path::PathBuf, sync::Arc};
 use tokio::net::TcpListener;
-use tower_http::trace::TraceLayer;
+use tower_http::{cors::CorsLayer, trace::TraceLayer};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -22,6 +25,9 @@ struct Args {
 
 impl Args {
     async fn exec(self) -> Result<()> {
+        let allowed_origin = std::env::var("TTPEDIA_REPO_ALLOWED_ORIGIN")?;
+        let allowed_origin = allowed_origin.parse::<HeaderValue>()?;
+
         let builder = Repo::build_tokio();
         let storage = TokioFilesystemStorage::new(self.data_root);
         let builder = builder.with_storage(storage);
@@ -36,6 +42,12 @@ impl Args {
                 axum::routing::post(post_submit_handler),
             )
             .route("/ttpapi1/repo/sync", axum::routing::get(websocket_handler))
+            .layer(
+                CorsLayer::new()
+                    .allow_origin(allowed_origin)
+                    .allow_methods([Method::GET, Method::POST])
+                    .allow_headers([header::CONTENT_TYPE]),
+            )
             .layer(TraceLayer::new_for_http())
             .with_state((samod.clone(), running_connections.clone()));
 

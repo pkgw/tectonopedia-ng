@@ -19,6 +19,8 @@ services:
     volumes:
       - ./backend/target/debug/ttpedia_reposerver:/ttpedia_reposerver:ro
       - repo_data:/repodata:rw
+    environment:
+      TTPEDIA_REPO_ALLOWED_ORIGIN: http://localhost:29080
     command: /ttpedia_reposerver /repodata
     depends_on:
       - faktory
@@ -49,9 +51,10 @@ services:
     ports:
       - "29080:3000"
     environment:
-      # NB, this is what the *client* communicates with, so it's an "outside
-      # Docker" URL, not "inside Docker":
-      NUXT_PUBLIC_REPO_WEBSOCKETS_BASE: ws://localhost:29180/ttpapi1/repo/sync
+      # NB, these are what the *client* communicates with, so they're "outside
+      # Docker" URLs, not "inside Docker":
+      NUXT_PUBLIC_BACKEND_API_BASE: http://localhost:29180/ttpapi1
+      NUXT_PUBLIC_REPO_WEBSOCKETS_URL: ws://localhost:29180/ttpapi1/repo/sync
     command: |
       bash -c "cd /app && yarn dev"
     depends_on:
