@@ -51,7 +51,7 @@ services:
     environment:
       # NB, this is what the *client* communicates with, so it's an "outside
       # Docker" URL, not "inside Docker":
-      NUXT_PUBLIC_REPO_WEBSOCKETS_BASE: ws://localhost:29180/ttpapi1/repo
+      NUXT_PUBLIC_REPO_WEBSOCKETS_BASE: ws://localhost:29180/ttpapi1/repo/sync
     command: |
       bash -c "cd /app && yarn dev"
     depends_on:
