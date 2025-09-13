@@ -33,12 +33,12 @@ const editorExtensions: Ref<Extension[]> = ref([]);
 // message.tex => 3huRDC2cWvQhEeFxezP58NWxnMk9
 // why-tex.tex => 3XuSpKARAcsShsAFTZBJKBxwjRsz
 
-const WS_URL = "ws://127.0.0.1:20800/";
 const DOC_ID = "gxhZkppeZEXBb7LXnwvHWEuavAd" as DocumentId;
 
 onMounted(async () => {
+  const config = useRuntimeConfig();
   const keypair = await useKeypair();
-  const repo = useRepo(WS_URL);
+  const repo = useRepo(config.public.repoWebsocketsBase);
 
   const handle = await repo.find<MinimalDoc>(DOC_ID);
   await handle.whenReady();

@@ -32,12 +32,12 @@ impl Args {
             .with_state((samod.clone(), running_connections.clone()));
 
         // NB hardcoded testing port
-        let listener = TcpListener::bind("0.0.0.0:20800")
+        let listener = TcpListener::bind("0.0.0.0:29180")
             .await
             .expect("unable to bind socket");
 
         let server = axum::serve(listener, app).into_future();
-        println!("listening on: ws://127.0.0.1:20800/");
+        println!("listening on: ws://127.0.0.1:29180/");
         println!("peer ID is: {}", samod.peer_id());
 
         tokio::spawn(server).await??;

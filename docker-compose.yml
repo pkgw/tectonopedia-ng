@@ -1,0 +1,42 @@
+# A small docker-compose for local development.
+#
+# There are no custom-built images here. Instead we use Docker volumes to point
+# generic images at the right resources needed to spin up everything using local
+# builds. To to this, create a `.env` file with the following settings:
+#
+# - TTPEDIA_MY_OS: an OS image that can run your debug binaries
+# - TTPEDIA_DATA_PREFIX: an absolute path where the persistent data volumes will go
+#   Recommended to put them in `./local/data/`.
+#
+# The frontend will be exposed on http://localhost:29080/, the backend web API on
+# http://localhost:29180, the backend WebSockets API on ws://localhost:29180/.
+
+services:
+  repo_server:
+    image: ${TTPEDIA_MY_OS}
+    volumes:
+      - ./backend/target/debug/ttpedia_reposerver:/ttpedia_reposerver:ro
+      - repo_data:/repodata:rw
+    ports:
+      - "29180:29180"
+    command: /ttpedia_reposerver /repodata
+
+  frontend:
+    image: node:24
+    volumes:
+      - ./frontend:/app:rw
+    ports:
+      - "29080:3000"
+    environment:
+      # NB, this is what the *client* communicates with, so it's an "outside
+      # Docker" URL, not "inside Docker":
+      NUXT_PUBLIC_REPO_WEBSOCKETS_BASE: ws://localhost:29180/
+    command: |
+      bash -c "cd /app && yarn dev"
+
+volumes:
+  repo_data:
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: ${TTPEDIA_DATA_PREFIX}/repo_data

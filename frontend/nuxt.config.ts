@@ -13,5 +13,11 @@ export default defineNuxtConfig({
       wasm(),
       topLevelAwait()
     ]
+  },
+
+  runtimeConfig: {
+    public: {
+      repoWebsocketsBase: "http://localhost:29100/"
+    }
   }
 })
