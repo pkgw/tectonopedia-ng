@@ -19,8 +19,6 @@ services:
     volumes:
       - ./backend/target/debug/ttpedia_reposerver:/ttpedia_reposerver:ro
       - repo_data:/repodata:rw
-    ports:
-      - "29180:29180"
     command: /ttpedia_reposerver /repodata
     depends_on:
       - faktory
@@ -35,6 +33,15 @@ services:
       FAKTORY_PASSWORD: ${TTPEDIA_FAKTORY_PASSWORD}
     command:  /faktory -b :7419 -w :7420 -e production
 
+  backend_facade:
+    image: nginx:1.29
+    volumes:
+      - ./local/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "29180:80"
+    depends_on:
+      - repo_server
+
   frontend:
     image: node:24
     volumes:
@@ -44,11 +51,11 @@ services:
     environment:
       # NB, this is what the *client* communicates with, so it's an "outside
       # Docker" URL, not "inside Docker":
-      NUXT_PUBLIC_REPO_WEBSOCKETS_BASE: ws://localhost:29180/
+      NUXT_PUBLIC_REPO_WEBSOCKETS_BASE: ws://localhost:29180/ttpapi1/repo
     command: |
       bash -c "cd /app && yarn dev"
     depends_on:
-      - repo_server
+      - backend_facade
 
 volumes:
   faktory_data:
