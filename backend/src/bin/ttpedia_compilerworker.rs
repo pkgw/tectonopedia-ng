@@ -8,7 +8,7 @@ use anyhow::Result;
 use clap::Parser;
 use faktory::{Job, Worker};
 
-const NUM_WORKERS: usize = 2;
+const NUM_WORKERS: usize = 1; // with the global Tectonic mutex, we're stuck with this
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]

@@ -17,6 +17,12 @@ samod = { path = "../../samod/samod", features = [
     "tungstenite",
 ] }
 serde = { version = "1", features = ["derive"] }
+tectonic = { path = "/p/tex/tectonic" }
+tectonic_bridge_core = { path = "/p/tex/tectonic/crates/bridge_core" }
+tectonic_bridge_harfbuzz = { path = "/p/tex/tectonic/crates/bridge_harfbuzz" }
+tectonic_engine_spx2html = { path = "/p/tex/tectonic/crates/engine_spx2html" }
+tectonic_errors = "0.2"
+tectonic_status_base = "0.2"
 tokio = { version = "1.47.1", features = [
     "macros",
     "net",
