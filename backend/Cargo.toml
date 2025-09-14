@@ -22,7 +22,7 @@ tectonic_bridge_core = { path = "/p/tex/tectonic/crates/bridge_core" }
 tectonic_bridge_harfbuzz = { path = "/p/tex/tectonic/crates/bridge_harfbuzz" }
 tectonic_engine_spx2html = { path = "/p/tex/tectonic/crates/engine_spx2html" }
 tectonic_errors = "0.2"
-tectonic_status_base = "0.2"
+tectonic_status_base = { path = "/p/tex/tectonic/crates/status_base" }
 tokio = { version = "1.47.1", features = [
     "macros",
     "net",

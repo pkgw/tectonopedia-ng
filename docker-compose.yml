@@ -35,9 +35,11 @@ services:
     image: ${TTPEDIA_MY_OS}
     volumes:
       - ./backend/target/debug/ttpedia_compilerworker:/ttpedia_compilerworker:ro
+      - ./defs:/defs:ro
+      - tectonic_cache:/root/.cache/Tectonic
     environment:
       FAKTORY_URL: "tcp://:${TTPEDIA_FAKTORY_PASSWORD}@faktory:7419"
-    command: /ttpedia_compilerworker
+    command: bash -c "dnf install -y fontconfig libicu && /ttpedia_compilerworker"
     depends_on:
       faktory:
         condition: service_healthy
@@ -91,3 +93,8 @@ volumes:
       type: "none"
       o: "bind"
       device: ${TTPEDIA_DATA_PREFIX}/repo_data
+  tectonic_cache:
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: ${TTPEDIA_DATA_PREFIX}/tectonic_cache
