@@ -7,7 +7,11 @@
 use anyhow::Result;
 use clap::Parser;
 use faktory::{Job, Worker};
-use std::io::{BufRead, BufReader, Cursor};
+use once_cell::sync::OnceCell;
+use std::{
+    io::{BufRead, BufReader, Cursor},
+    path::PathBuf,
+};
 use tectonic::{
     config::PersistentConfig,
     driver::{OutputFormat, PassSetting, ProcessingSessionBuilder},
@@ -22,10 +26,19 @@ const DEBUG: bool = false;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
-struct Args {}
+struct Args {
+    defs_dir: PathBuf,
+}
+
+/// The do_compile() function must be static according to faktory-rs's typing,
+/// so I think we need a construct like this to allow it to access the runtime
+/// args. There's almost surely a better way to do this.
+static GLOBAL_ARGS_HACK: OnceCell<Args> = OnceCell::new();
 
 impl Args {
     async fn exec(self) -> Result<()> {
+        GLOBAL_ARGS_HACK.get_or_init(|| self);
+
         let mut worker = Worker::builder()
             .workers(NUM_WORKERS)
             .register_blocking_fn("compile", do_compile)
@@ -41,7 +54,8 @@ impl Args {
 
 /// Compile a TeX document in the Tectonopedia framework.
 fn do_compile(job: Job) -> Result<(), faktory::Error> {
-    let mut state: CompileState<'_> = (&job).into();
+    let args = GLOBAL_ARGS_HACK.get().unwrap();
+    let mut state = CompileState::new(args, &job);
     state.pass1()?;
     Ok(())
 }
@@ -50,16 +64,18 @@ fn do_compile(job: Job) -> Result<(), faktory::Error> {
 /// have all of that be borrowed.
 #[derive(Debug)]
 struct CompileState<'a> {
+    args: &'a Args,
     job: &'a Job,
     doc_id: &'a str,
     content: &'a str,
 }
 
-impl<'a> From<&'a Job> for CompileState<'a> {
-    fn from(job: &'a Job) -> Self {
+impl<'a> CompileState<'a> {
+    fn new(args: &'a Args, job: &'a Job) -> Self {
         let doc_id = job.args()[0].as_str().unwrap();
         let content = job.args()[1].as_str().unwrap();
         CompileState {
+            args,
             job,
             doc_id,
             content,
@@ -74,11 +90,10 @@ impl<'a> CompileState<'a> {
         let config: PersistentConfig = PersistentConfig::open(false).expect("config");
         let security = SecuritySettings::new(SecurityStance::MaybeAllowInsecures);
 
-        //let root = gtry!(crate::config::get_root());
-        //let mut cls = root.clone();
-        //cls.push("cls");
+        let mut cls = self.args.defs_dir.clone();
+        cls.push("cls");
         let unstables = UnstableOptions {
-            //extra_search_paths: vec![cls],
+            extra_search_paths: vec![cls],
             ..UnstableOptions::default()
         };
 
@@ -99,7 +114,7 @@ impl<'a> CompileState<'a> {
             .format_name("latex")
             .output_format(OutputFormat::Html)
             .do_not_write_output_files()
-            //.filesystem_root(root)
+            .filesystem_root(&self.args.defs_dir)
             .unstables(unstables)
             .format_cache_path(config.format_cache_path().expect("cachepath"))
             .html_emit_files(false)

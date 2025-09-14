@@ -39,7 +39,7 @@ services:
       - tectonic_cache:/root/.cache/Tectonic
     environment:
       FAKTORY_URL: "tcp://:${TTPEDIA_FAKTORY_PASSWORD}@faktory:7419"
-    command: bash -c "dnf install -y fontconfig libicu && /ttpedia_compilerworker"
+    command: bash -c "dnf install -y fontconfig libicu && /ttpedia_compilerworker /defs"
     depends_on:
       faktory:
         condition: service_healthy
