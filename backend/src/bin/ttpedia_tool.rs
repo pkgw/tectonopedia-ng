@@ -3,6 +3,7 @@
 use anyhow::Result;
 use automerge::{Automerge, ObjType, ROOT, transaction::Transactable};
 use clap::Parser;
+use minio::s3::types::S3Api;
 use samod::{Repo, storage::TokioFilesystemStorage};
 use std::path::PathBuf;
 
@@ -17,12 +18,16 @@ struct Args {
 enum Subcommands {
     /// Import a file into an on-disk repo.
     Import(ImportCommand),
+
+    /// Create a bucket in a bucket storage service.
+    MakeBucket(MakeBucketCommand),
 }
 
 impl Subcommands {
     async fn exec(self) -> Result<()> {
         match self {
             Subcommands::Import(a) => a.exec().await,
+            Subcommands::MakeBucket(a) => a.exec().await,
         }
     }
 }
@@ -59,6 +64,35 @@ impl ImportCommand {
         let handle = samod.create(doc).await?;
         println!("{}", handle.document_id());
         samod.stop().await;
+        Ok(())
+    }
+}
+
+#[derive(Parser, Debug)]
+#[command()]
+struct MakeBucketCommand {
+    #[arg()]
+    url: String,
+
+    #[arg()]
+    bucket: String,
+}
+
+impl MakeBucketCommand {
+    async fn exec(self) -> Result<()> {
+        let bucket_username = std::env::var("TTPEDIA_BUCKET_USERNAME")?;
+        let bucket_password = std::env::var("TTPEDIA_BUCKET_PASSWORD")?;
+
+        let base_url: minio::s3::http::BaseUrl = self.url.parse()?;
+        let provider =
+            minio::s3::creds::StaticProvider::new(&bucket_username, &bucket_password, None);
+        let client = minio::s3::client::ClientBuilder::new(base_url)
+            .provider(Some(Box::new(provider)))
+            .app_info(Some(("ttpedia-tool".to_owned(), "0".to_owned())))
+            .build()?;
+
+        let resp = client.create_bucket(self.bucket).send().await?;
+        println!("Made bucket `{}` in region `{}`", resp.bucket, resp.region);
         Ok(())
     }
 }

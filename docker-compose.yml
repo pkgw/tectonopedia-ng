@@ -7,6 +7,7 @@
 # - TTPEDIA_MY_OS: any basic Docker image that can run your debug Rust binaries
 # - TTPEDIA_DATA_PREFIX: an absolute path where the persistent data volumes will go
 #   Recommended to put them in `./local/data/`.
+# - TTPEDIA_BUCKET_PASSWORD: a password for bucket-storage (MinIO) authentication
 # - TTPEDIA_FAKTORY_PASSWORD: a password for Faktory authentication
 #
 # The frontend will be exposed on http://localhost:29080/, the backend web API on
@@ -14,6 +15,18 @@
 # Faktory web UI is exported on its default port 7420.
 
 services:
+  bucket:
+    image: quay.io/minio/minio:latest
+    volumes:
+      - minio_data:/data:rw
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: tectonopedia
+      MINIO_ROOT_PASSWORD: ${TTPEDIA_BUCKET_PASSWORD}
+    command: minio server /data --console-address :9001
+
   faktory:
     image: contribsys/faktory:1.9.3
     volumes:
@@ -39,6 +52,9 @@ services:
       - tectonic_cache:/root/.cache/Tectonic
     environment:
       FAKTORY_URL: "tcp://:${TTPEDIA_FAKTORY_PASSWORD}@faktory:7419"
+      TTPEDIA_BUCKET_URL: http://bucket:9000/
+      TTPEDIA_BUCKET_USERNAME: tectonopedia
+      TTPEDIA_BUCKET_PASSWORD: ${TTPEDIA_BUCKET_PASSWORD}
       TTPEDIA_NEXUS_URL: http://nexus_server:29280/ttpapi1/nexus
     command: bash -c "dnf install -y fontconfig libicu && /ttpedia_compilerworker /defs"
     depends_on:
@@ -98,6 +114,11 @@ volumes:
       type: "none"
       o: "bind"
       device: ${TTPEDIA_DATA_PREFIX}/faktory_data
+  minio_data:
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: ${TTPEDIA_DATA_PREFIX}/minio_data
   nexus_data:
     driver_opts:
       type: "none"

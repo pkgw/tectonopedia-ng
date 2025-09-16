@@ -17,6 +17,7 @@ use tectonic::{
 };
 use tectonic_bridge_core::{SecuritySettings, SecurityStance};
 use tectonic_status_base::ChatterLevel;
+use tempfile::TempDir;
 
 use ttpedia_backend::{NexusPostPass1Request, NexusPostPass1Response};
 
@@ -32,15 +33,24 @@ struct Args {
 #[derive(Debug)]
 struct Config {
     defs_dir: PathBuf,
+    bucket_url: String,
+    bucket_username: String,
+    bucket_password: String,
     nexus_url: String,
 }
 
 impl Config {
     fn new(args: Args) -> Result<Self> {
+        let bucket_url = std::env::var("TTPEDIA_BUCKET_URL")?;
+        let bucket_username = std::env::var("TTPEDIA_BUCKET_USERNAME")?;
+        let bucket_password = std::env::var("TTPEDIA_BUCKET_PASSWORD")?;
         let nexus_url = std::env::var("TTPEDIA_NEXUS_URL")?;
 
         Ok(Config {
             defs_dir: args.defs_dir,
+            bucket_url,
+            bucket_username,
+            bucket_password,
             nexus_url,
         })
     }
@@ -58,7 +68,7 @@ impl Args {
 
         let mut worker = Worker::builder()
             .workers(NUM_WORKERS)
-            .register_blocking_fn("compile", do_compile)
+            .register_fn("compile", do_compile)
             .connect()
             .await
             .unwrap();
@@ -73,18 +83,31 @@ impl Args {
 ///
 /// FIXME: return type needs to be a faktory Error? If so we need to add some
 /// magic to be able to use boxed errors internally because nah.
-fn do_compile(job: Job) -> Result<(), faktory::Error> {
+async fn do_compile(job: Job) -> Result<(), faktory::Error> {
     let config = GLOBAL_CONFIG_HACK.get().unwrap();
-    let mut state = CompileState::new(config, &job);
+    let mut state = CompileState::new(config, job);
 
-    // Compilation pass 1.
-    let req = state.pass1()?;
+    // Compilation pass 1 - blocking
+    let (req, mut state) = tokio::task::spawn_blocking(move || -> Result<_, faktory::Error> {
+        let req = state.pass1()?;
+        Ok((req, state))
+    })
+    .await
+    .expect("join")?;
 
     // Submit to nexus and process results
-    state.nexus1(req)?;
+    state.nexus1(req).await?;
 
     // Compilation pass 2.
-    state.pass2()?;
+    let (out_dir, state) = tokio::task::spawn_blocking(move || -> Result<_, faktory::Error> {
+        let out_dir = state.pass2()?;
+        Ok((out_dir, state))
+    })
+    .await
+    .expect("join")?;
+
+    // upload to bucket
+    state.upload_to_bucket(out_dir).await?;
 
     Ok(())
 }
@@ -94,21 +117,20 @@ fn do_compile(job: Job) -> Result<(), faktory::Error> {
 #[derive(Debug)]
 struct CompileState<'a> {
     config: &'a Config,
-    job: &'a Job,
-    doc_id: &'a str,
-    content: &'a str,
+    job: Job,
 }
 
 impl<'a> CompileState<'a> {
-    fn new(config: &'a Config, job: &'a Job) -> Self {
-        let doc_id = job.args()[0].as_str().unwrap();
-        let content = job.args()[1].as_str().unwrap();
-        CompileState {
-            config,
-            job,
-            doc_id,
-            content,
-        }
+    fn new(config: &'a Config, job: Job) -> Self {
+        CompileState { config, job }
+    }
+
+    fn doc_id(&self) -> &str {
+        self.job.args()[0].as_str().unwrap()
+    }
+
+    fn content(&self) -> &str {
+        self.job.args()[1].as_str().unwrap()
     }
 }
 
@@ -132,7 +154,7 @@ impl<'a> CompileState<'a> {
             \\input{{preamble}}
             {}
             \\input{{postamble}}\n",
-            self.content,
+            self.content(),
         );
 
         let mut sess = ProcessingSessionBuilder::new_with_security(security);
@@ -174,24 +196,26 @@ impl<'a> CompileState<'a> {
         let links = String::from_utf8(links.data).expect("`pedia.txt` not UTF8");
 
         Ok(NexusPostPass1Request {
-            doc_id: self.doc_id.to_owned(),
+            doc_id: self.doc_id().to_owned(),
             job_id: self.job.id().to_string(),
             assets_json: assets,
             pedia_txt: links,
         })
     }
 
-    fn nexus1(&mut self, req: NexusPostPass1Request) -> Result<(), faktory::Error> {
-        let client = reqwest::blocking::Client::new();
+    async fn nexus1(&mut self, req: NexusPostPass1Request) -> Result<(), faktory::Error> {
+        let client = reqwest::Client::new();
         let resp = client
             .post(format!("{}/pass1", self.config.nexus_url))
             .json(&req)
             .send()
+            .await
             .expect("HTTP pass1 to nexus didnt send")
             .error_for_status()
             .expect("HTTP pass1 to nexus failed");
         let payload = resp
             .json::<NexusPostPass1Response>()
+            .await
             .expect("HTTP pass1 resp json");
 
         // TODO: DO STUFF
@@ -200,7 +224,9 @@ impl<'a> CompileState<'a> {
     }
 
     /// Second compilation pass.
-    fn pass2(&mut self) -> Result<(), faktory::Error> {
+    ///
+    /// Note: need to return the TempDir so as not to delete it!
+    fn pass2(&mut self) -> Result<TempDir, faktory::Error> {
         let mut status = TermcolorStatusBackend::new(ChatterLevel::default());
         let config: PersistentConfig = PersistentConfig::open(false).expect("config");
         let security = SecuritySettings::new(SecurityStance::MaybeAllowInsecures);
@@ -223,9 +249,9 @@ impl<'a> CompileState<'a> {
             ..UnstableOptions::default()
         };
 
-        let out_dir = tempfile::TempDir::new().expect("make tempdir");
+        let out_dir = TempDir::new().expect("make tempdir");
 
-        let rrtex = ""; // TODO
+        let rrtex = ""; // TODO: TeX of resolved reference info
 
         let input = format!(
             "\\newif\\ifpassone \
@@ -234,7 +260,8 @@ impl<'a> CompileState<'a> {
             {}
             {}
             \\input{{postamble}}\n",
-            rrtex, self.content,
+            rrtex,
+            self.content(),
         );
 
         let mut sess = ProcessingSessionBuilder::new_with_security(security);
@@ -271,9 +298,44 @@ impl<'a> CompileState<'a> {
             println!("- memfile: {fname}: {}", finfo.data.len());
         }
 
-        for entry in std::fs::read_dir(&out_dir).expect("readdir") {
-            let entry = entry.expect("readdirent");
-            println!("- fsfile: {}", entry.path().display());
+        Ok(out_dir)
+    }
+
+    async fn upload_to_bucket(&self, out_dir: TempDir) -> Result<(), faktory::Error> {
+        let base_url: minio::s3::http::BaseUrl = self.config.bucket_url.parse().expect("parse URL");
+        let provider = minio::s3::creds::StaticProvider::new(
+            &self.config.bucket_username,
+            &self.config.bucket_password,
+            None,
+        );
+        let client = minio::s3::client::ClientBuilder::new(base_url)
+            .provider(Some(Box::new(provider)))
+            .app_info(Some(("compilerworker".to_owned(), "0".to_owned())))
+            .build()
+            .expect("minio client build");
+
+        let mut dir = tokio::fs::read_dir(&out_dir).await.expect("readdir");
+
+        while let Some(entry) = dir.next_entry().await.expect("readdirent") {
+            let os_fn = entry.file_name();
+            let Some(stem) = os_fn.to_str().and_then(|f| f.strip_prefix("entry-")) else {
+                continue;
+            };
+
+            let object = format!("{}_{}", self.doc_id(), stem);
+            println!("- fsfile: {} => {}", entry.path().display(), object);
+
+            let content: minio::s3::builders::ObjectContent = entry.path().as_path().into();
+
+            let resp = client
+                .put_object_content("ttpedia-html", object, content)
+                .send()
+                .await
+                .unwrap();
+            println!(
+                "  ... uploaded object `{}` with ETag `{}`",
+                resp.object, resp.etag
+            );
         }
 
         Ok(())
