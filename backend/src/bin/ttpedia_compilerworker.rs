@@ -322,7 +322,7 @@ impl<'a> CompileState<'a> {
                 continue;
             };
 
-            let object = format!("{}_{}", self.doc_id(), stem);
+            let object = format!("{}/{}", self.doc_id(), stem);
             println!("- fsfile: {} => {}", entry.path().display(), object);
 
             let content: minio::s3::builders::ObjectContent = entry.path().as_path().into();

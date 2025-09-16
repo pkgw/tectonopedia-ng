@@ -71,6 +71,12 @@ impl ImportCommand {
 #[derive(Parser, Debug)]
 #[command()]
 struct MakeBucketCommand {
+    #[arg(long)]
+    public: bool,
+
+    #[arg(long)]
+    versioning: bool,
+
     #[arg()]
     url: String,
 
@@ -91,8 +97,42 @@ impl MakeBucketCommand {
             .app_info(Some(("ttpedia-tool".to_owned(), "0".to_owned())))
             .build()?;
 
-        let resp = client.create_bucket(self.bucket).send().await?;
+        let resp = client.create_bucket(&self.bucket).send().await?;
         println!("Made bucket `{}` in region `{}`", resp.bucket, resp.region);
+
+        if self.versioning {
+            let resp = client
+                .put_bucket_versioning(&self.bucket)
+                .versioning_status(minio::s3::builders::VersioningStatus::Enabled)
+                .send()
+                .await?;
+            println!("Enabled versioning on bucket `{}`", resp.bucket);
+        }
+
+        if self.public {
+            let resp = client
+                .put_bucket_policy(&self.bucket)
+                .config(format!(
+                    r#"{{
+                        "Version": "2012-10-17",
+                        "Statement": [
+                            {{
+                                "Effect": "Allow",
+                                "Principal": {{
+                                    "AWS": ["*"]
+                                }},
+                                "Action": ["s3:GetObject"],
+                                "Resource": ["arn:aws:s3:::{}/*"]
+                            }}
+                        ]
+                    }}"#,
+                    self.bucket
+                ))
+                .send()
+                .await?;
+            println!("Enabled readonly access on bucket `{}`", resp.bucket);
+        }
+
         Ok(())
     }
 }
