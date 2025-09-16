@@ -39,6 +39,7 @@ services:
       - tectonic_cache:/root/.cache/Tectonic
     environment:
       FAKTORY_URL: "tcp://:${TTPEDIA_FAKTORY_PASSWORD}@faktory:7419"
+      TTPEDIA_NEXUS_URL: http://nexus_server:29280/ttpapi1/nexus
     command: bash -c "dnf install -y fontconfig libicu && /ttpedia_compilerworker /defs"
     depends_on:
       faktory:
@@ -56,6 +57,15 @@ services:
     depends_on:
       faktory:
         condition: service_healthy
+
+  nexus_server:
+    image: ${TTPEDIA_MY_OS}
+    volumes:
+      - ./backend/target/debug/ttpedia_nexusserver:/ttpedia_nexusserver:ro
+      - nexus_data:/nexusdata:rw
+    environment:
+      TTPEDIA_NEXUS_ALLOWED_ORIGIN: http://localhost:29080
+    command: /ttpedia_nexusserver /nexusdata
 
   backend_facade:
     image: nginx:1.29
@@ -88,6 +98,11 @@ volumes:
       type: "none"
       o: "bind"
       device: ${TTPEDIA_DATA_PREFIX}/faktory_data
+  nexus_data:
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: ${TTPEDIA_DATA_PREFIX}/nexus_data
   repo_data:
     driver_opts:
       type: "none"
