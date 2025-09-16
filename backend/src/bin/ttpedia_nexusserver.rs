@@ -7,7 +7,6 @@ use axum::{
     http::{HeaderValue, Method, header},
 };
 use clap::Parser;
-use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tokio::net::TcpListener;
 use tower_http::{cors::CorsLayer, trace::TraceLayer};

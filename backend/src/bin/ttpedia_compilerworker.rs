@@ -70,10 +70,22 @@ impl Args {
 }
 
 /// Compile a TeX document in the Tectonopedia framework.
+///
+/// FIXME: return type needs to be a faktory Error? If so we need to add some
+/// magic to be able to use boxed errors internally because nah.
 fn do_compile(job: Job) -> Result<(), faktory::Error> {
     let config = GLOBAL_CONFIG_HACK.get().unwrap();
     let mut state = CompileState::new(config, &job);
-    state.pass1()?;
+
+    // Compilation pass 1.
+    let req = state.pass1()?;
+
+    // Submit to nexus and process results
+    state.nexus1(req)?;
+
+    // Compilation pass 2.
+    state.pass2()?;
+
     Ok(())
 }
 
@@ -102,7 +114,7 @@ impl<'a> CompileState<'a> {
 
 impl<'a> CompileState<'a> {
     /// First compilation pass.
-    fn pass1(&mut self) -> Result<(), faktory::Error> {
+    fn pass1(&mut self) -> Result<NexusPostPass1Request, faktory::Error> {
         let mut status = TermcolorStatusBackend::new(ChatterLevel::default());
         let config: PersistentConfig = PersistentConfig::open(false).expect("config");
         let security = SecuritySettings::new(SecurityStance::MaybeAllowInsecures);
@@ -161,13 +173,15 @@ impl<'a> CompileState<'a> {
             .expect("no `pedia.txt` file output");
         let links = String::from_utf8(links.data).expect("`pedia.txt` not UTF8");
 
-        let req = NexusPostPass1Request {
+        Ok(NexusPostPass1Request {
             doc_id: self.doc_id.to_owned(),
             job_id: self.job.id().to_string(),
             assets_json: assets,
             pedia_txt: links,
-        };
+        })
+    }
 
+    fn nexus1(&mut self, req: NexusPostPass1Request) -> Result<(), faktory::Error> {
         let client = reqwest::blocking::Client::new();
         let resp = client
             .post(format!("{}/pass1", self.config.nexus_url))
@@ -179,7 +193,89 @@ impl<'a> CompileState<'a> {
         let payload = resp
             .json::<NexusPostPass1Response>()
             .expect("HTTP pass1 resp json");
+
+        // TODO: DO STUFF
         println!("response from nexus: {payload:?}");
+        Ok(())
+    }
+
+    /// Second compilation pass.
+    fn pass2(&mut self) -> Result<(), faktory::Error> {
+        let mut status = TermcolorStatusBackend::new(ChatterLevel::default());
+        let config: PersistentConfig = PersistentConfig::open(false).expect("config");
+        let security = SecuritySettings::new(SecurityStance::MaybeAllowInsecures);
+
+        // let mut assets = AssetSpecification::default();
+        // let assets_path = indices.path_for_runtime_ident(merged_assets_id).unwrap();
+        // let assets_file = atry!(
+        //     File::open(&assets_path);
+        //     ["failed to open input `{}`", assets_path.display()]
+        // );
+        // atry!(
+        //     assets.add_from_saved(assets_file);
+        //     ["failed to import assets data"]
+        // );
+
+        let mut cls = self.config.defs_dir.clone();
+        cls.push("cls");
+        let unstables = UnstableOptions {
+            extra_search_paths: vec![cls],
+            ..UnstableOptions::default()
+        };
+
+        let out_dir = tempfile::TempDir::new().expect("make tempdir");
+
+        let rrtex = ""; // TODO
+
+        let input = format!(
+            "\\newif\\ifpassone \
+            \\passonefalse \
+            \\input{{preamble}}
+            {}
+            {}
+            \\input{{postamble}}\n",
+            rrtex, self.content,
+        );
+
+        let mut sess = ProcessingSessionBuilder::new_with_security(security);
+        sess.primary_input_buffer(input.as_bytes())
+            .tex_input_name("texput")
+            .build_date(std::time::SystemTime::now())
+            .bundle(config.default_bundle(false).expect("defaultbundle"))
+            .format_name("latex")
+            .output_format(OutputFormat::Html)
+            //.html_precomputed_assets(assets)
+            .filesystem_root(&self.config.defs_dir)
+            .unstables(unstables)
+            .format_cache_path(config.format_cache_path().expect("cachepath"))
+            .output_dir(&out_dir)
+            .html_emit_files(true)
+            .html_emit_assets(false)
+            .pass(PassSetting::Default);
+
+        if DEBUG {
+            sess.print_stdout(true);
+        }
+
+        let mut sess = sess.create(&mut status).expect("create");
+
+        // Print more details in the error case here?
+        sess.run(&mut status).expect("run!");
+
+        // Gather results ...
+
+        println!("pass 2 done");
+        let mut files = sess.into_file_data();
+
+        for (fname, finfo) in files.drain() {
+            println!("- memfile: {fname}: {}", finfo.data.len());
+        }
+
+        for entry in std::fs::read_dir(&out_dir).expect("readdir") {
+            let entry = entry.expect("readdirent");
+            println!("- fsfile: {}", entry.path().display());
+        }
+
         Ok(())
     }
 }

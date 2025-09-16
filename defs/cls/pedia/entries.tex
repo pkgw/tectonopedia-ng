@@ -15,10 +15,10 @@
   \def\tmp@b{#1}%
 
   % This is the stuff we can do with just the slug:
-  \tduxSetupOutput{template.html}{e/#1/index.html}
+  \tduxSetupOutput{template.html}{entry-#1.html}
   \@pedia@emitNeededtrue
-  \def\pediaRelTop{../../}
-  \immediate\write\pediaIndex{\string\output{e/#1/index.html}}
+  \def\pediaRelTop{./}
+  \immediate\write\pediaIndex{\string\output{entry-#1.html}}
   \immediate\write\pediaIndex{\string\idef{entries}{#1}{}}
   % This parses the second argument (the TeX title), places it in
   % \pedia@maybeVerbatimToks, and then evaluates \Entry@tailA
