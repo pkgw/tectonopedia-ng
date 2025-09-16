@@ -30,7 +30,7 @@ impl Args {
         let allowed_origin = std::env::var("TTPEDIA_REPO_ALLOWED_ORIGIN")?;
         let allowed_origin = allowed_origin.parse::<HeaderValue>()?;
 
-        let faktory_client = Client::connect_to("tcp://:sdgobugsdkinasd@faktory:7419").await?;
+        let faktory_client = Client::connect().await?;
         let faktory_client = Arc::new(Mutex::new(faktory_client));
 
         let builder = Repo::build_tokio();
