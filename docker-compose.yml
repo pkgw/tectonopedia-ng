@@ -106,7 +106,6 @@ services:
       # NB, these are what the *client* communicates with, so they're "outside
       # Docker" URLs, not "inside Docker":
       NUXT_PUBLIC_BACKEND_API_BASE: http://localhost:29180/ttpapi1
-      NUXT_PUBLIC_DATA_URL: http://localhost:29180/ttpdata
       NUXT_PUBLIC_REPO_WEBSOCKETS_URL: ws://localhost:29180/ttpapi1/repo/sync
     command: |
       bash -c "cd /app && yarn dev"
