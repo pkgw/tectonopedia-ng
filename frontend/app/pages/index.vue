@@ -1,5 +1,9 @@
 <template>
   <div>
+    <h1>Here’s Content</h1>
+
+    <TexContent doc-id="gxhZkppeZEXBb7LXnwvHWEuavAd" outputName="dump.html"></TexContent>
+
     <h1>Welcome to the editor</h1>
 
     <UButton loading-auto @click="onSubmit">Submit</UButton>
