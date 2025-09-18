@@ -2,6 +2,8 @@
 
 use serde::{Deserialize, Serialize};
 
+pub mod metadata;
+
 /// The request to the Nexus server's `POST /pass1` endpoint, which is invoked
 /// when a compiler worker has completed a first compilation pass. This provides
 /// information about the assets required by the document.
