@@ -16,6 +16,7 @@ export default defineNuxtConfig({
   },
 
   runtimeConfig: {
+    internalDataUrl: "http://localhost:29100/ttpdata",
     public: {
       backendApiBase: "http://localhost:29100/ttpapi1",
       dataUrl: "http://localhost:29100/ttpdata",

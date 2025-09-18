@@ -11,9 +11,8 @@ interface Props {
 
 const { docId, outputName } = defineProps<Props>();
 
-const config = useRuntimeConfig();
 const key = `html/${docId}/${outputName}`;
-const url = `${config.public.dataUrl}/html/${docId}/${outputName}`;
+const url = `/api/html/${docId}/${outputName}`;
 const { data: htmlContent, error: fetchError } = await useAsyncData<string>(
     key,
     () => $fetch(url, { parseResponse: (txt: string) => txt })
