@@ -8,7 +8,7 @@ use anyhow::Result;
 use clap::Parser;
 use faktory::{Job, Worker};
 use once_cell::sync::OnceCell;
-use std::path::PathBuf;
+use std::{io::Cursor, path::PathBuf};
 use tectonic::{
     config::PersistentConfig,
     driver::{OutputFormat, PassSetting, ProcessingSessionBuilder},
@@ -16,10 +16,14 @@ use tectonic::{
     unstable_opts::UnstableOptions,
 };
 use tectonic_bridge_core::{SecuritySettings, SecurityStance};
+use tectonic_engine_spx2html::AssetSpecification;
 use tectonic_status_base::ChatterLevel;
 use tempfile::TempDir;
 
-use ttpedia_backend::{NexusPostPass1Request, NexusPostPass1Response};
+use ttpedia_backend::{
+    NexusPostAssetsUploadedRequest, NexusPostAssetsUploadedResponse, NexusPostPass1Request,
+    NexusPostPass1Response,
+};
 
 const NUM_WORKERS: usize = 1; // with the global Tectonic mutex, we're stuck with this
 const DEBUG: bool = false;
@@ -96,18 +100,19 @@ async fn do_compile(job: Job) -> Result<(), faktory::Error> {
     .expect("join")?;
 
     // Submit to nexus and process results
-    state.nexus1(req).await?;
+    let resp = state.nexus1(req).await?;
+    let preserve_assets = resp.preserve_assets;
 
     // Compilation pass 2.
     let (out_dir, state) = tokio::task::spawn_blocking(move || -> Result<_, faktory::Error> {
-        let out_dir = state.pass2()?;
+        let out_dir = state.pass2(resp)?;
         Ok((out_dir, state))
     })
     .await
     .expect("join")?;
 
     // upload to bucket
-    state.upload_to_bucket(out_dir).await?;
+    state.upload_to_bucket(out_dir, preserve_assets).await?;
 
     Ok(())
 }
@@ -203,7 +208,10 @@ impl<'a> CompileState<'a> {
         })
     }
 
-    async fn nexus1(&mut self, req: NexusPostPass1Request) -> Result<(), faktory::Error> {
+    async fn nexus1(
+        &mut self,
+        req: NexusPostPass1Request,
+    ) -> Result<NexusPostPass1Response, faktory::Error> {
         let client = reqwest::Client::new();
         let resp = client
             .post(format!("{}/pass1", self.config.nexus_url))
@@ -218,29 +226,21 @@ impl<'a> CompileState<'a> {
             .await
             .expect("HTTP pass1 resp json");
 
-        // TODO: DO STUFF
-        println!("response from nexus: {payload:?}");
-        Ok(())
+        Ok(payload)
     }
 
     /// Second compilation pass.
     ///
     /// Note: need to return the TempDir so as not to delete it!
-    fn pass2(&mut self) -> Result<TempDir, faktory::Error> {
+    fn pass2(&mut self, resp: NexusPostPass1Response) -> Result<TempDir, faktory::Error> {
         let mut status = TermcolorStatusBackend::new(ChatterLevel::default());
         let config: PersistentConfig = PersistentConfig::open(false).expect("config");
         let security = SecuritySettings::new(SecurityStance::MaybeAllowInsecures);
 
-        // let mut assets = AssetSpecification::default();
-        // let assets_path = indices.path_for_runtime_ident(merged_assets_id).unwrap();
-        // let assets_file = atry!(
-        //     File::open(&assets_path);
-        //     ["failed to open input `{}`", assets_path.display()]
-        // );
-        // atry!(
-        //     assets.add_from_saved(assets_file);
-        //     ["failed to import assets data"]
-        // );
+        let mut assets = AssetSpecification::default();
+        assets
+            .add_from_saved(Cursor::new(resp.assets_json.as_bytes()))
+            .expect("add assets");
 
         let mut cls = self.config.defs_dir.clone();
         cls.push("cls");
@@ -271,13 +271,13 @@ impl<'a> CompileState<'a> {
             .bundle(config.default_bundle(false).expect("defaultbundle"))
             .format_name("latex")
             .output_format(OutputFormat::Html)
-            //.html_precomputed_assets(assets)
+            .html_precomputed_assets(assets)
             .filesystem_root(&self.config.defs_dir)
             .unstables(unstables)
             .format_cache_path(config.format_cache_path().expect("cachepath"))
             .output_dir(&out_dir)
             .html_emit_files(true)
-            .html_emit_assets(false)
+            .html_emit_assets(resp.preserve_assets.is_some())
             .pass(PassSetting::Default);
 
         if DEBUG {
@@ -301,7 +301,11 @@ impl<'a> CompileState<'a> {
         Ok(out_dir)
     }
 
-    async fn upload_to_bucket(&self, out_dir: TempDir) -> Result<(), faktory::Error> {
+    async fn upload_to_bucket(
+        &self,
+        out_dir: TempDir,
+        preserve_assets: Option<usize>,
+    ) -> Result<(), faktory::Error> {
         let base_url: minio::s3::http::BaseUrl = self.config.bucket_url.parse().expect("parse URL");
         let provider = minio::s3::creds::StaticProvider::new(
             &self.config.bucket_username,
@@ -315,17 +319,91 @@ impl<'a> CompileState<'a> {
             .expect("minio client build");
 
         let mut dir = tokio::fs::read_dir(&out_dir).await.expect("readdir");
+        let mut assets = Vec::new();
+        let mut htmls = Vec::new();
+
+        // Scan the output dir for stuff we might need to upload.
 
         while let Some(entry) = dir.next_entry().await.expect("readdirent") {
-            let os_fn = entry.file_name();
-            let Some(stem) = os_fn.to_str().and_then(|f| f.strip_prefix("entry-")) else {
+            let os_name = entry.file_name();
+            let Some(str_name) = os_name.to_str() else {
                 continue;
             };
 
-            let object = format!("{}/{}", self.doc_id(), stem);
-            println!("- fsfile: {} => {}", entry.path().display(), object);
+            if preserve_assets.is_some() {
+                if str_name.ends_with(".otf") || str_name.ends_with(".css") {
+                    assets.push(entry.path());
+                    continue;
+                }
+            }
 
-            let content: minio::s3::builders::ObjectContent = entry.path().as_path().into();
+            if str_name.starts_with("entry-") {
+                htmls.push(entry.path());
+            }
+        }
+
+        // Upload assets if requested.
+
+        for asset_path in assets.drain(..) {
+            let object = format!(
+                "{}/{}",
+                self.job.id().to_string(),
+                asset_path.file_name().unwrap().to_str().unwrap()
+            );
+            let content: minio::s3::builders::ObjectContent = asset_path.as_path().into();
+
+            let resp = client
+                .put_object_content("ttpedia-sharedassets", object, content)
+                .send()
+                .await
+                .unwrap();
+            println!(
+                "  ... uploaded sharedassets object `{}` with ETag `{}`",
+                resp.object, resp.etag
+            );
+        }
+
+        // If that all worked, and we're preserving our assets, notify the nexus server to update
+        // its knowledge of the shared assets.
+
+        if let Some(seq_num) = preserve_assets {
+            let req = NexusPostAssetsUploadedRequest {
+                seq_num,
+                bucket_key: self.job.id().to_string(),
+            };
+
+            println!("notifying uploaded: {:?}", req);
+
+            let client = reqwest::Client::new();
+            let resp = client
+                .post(format!("{}/assets_uploaded", self.config.nexus_url))
+                .json(&req)
+                .send()
+                .await
+                .expect("HTTP assets-upload to nexus didnt send")
+                .error_for_status()
+                .expect("HTTP assets-upload to nexus failed");
+
+            // response is vacuous
+            resp.json::<NexusPostAssetsUploadedResponse>()
+                .await
+                .expect("HTTP assets-upload resp json");
+        }
+
+        // If the shared assets are sufficiently up-to-date, we can upload the
+        // actual HTMLs.
+
+        for html_path in htmls.drain(..) {
+            let stem = html_path
+                .file_name()
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .strip_prefix("entry-")
+                .unwrap();
+
+            let object = format!("{}/{}", self.doc_id(), stem);
+            let content: minio::s3::builders::ObjectContent = html_path.as_path().into();
 
             let resp = client
                 .put_object_content("ttpedia-html", object, content)
@@ -333,7 +411,7 @@ impl<'a> CompileState<'a> {
                 .await
                 .unwrap();
             println!(
-                "  ... uploaded object `{}` with ETag `{}`",
+                "  ... uploaded html object `{}` with ETag `{}`",
                 resp.object, resp.etag
             );
         }

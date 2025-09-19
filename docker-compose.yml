@@ -82,6 +82,7 @@ services:
       - nexus_data:/nexusdata:rw
     environment:
       TTPEDIA_NEXUS_ALLOWED_ORIGIN: http://localhost:29080
+      TTPEDIA_PUBLIC_DATA_URL: http://localhost:29180/ttpdata
     command: /ttpedia_nexusserver /nexusdata
 
   backend_facade:
