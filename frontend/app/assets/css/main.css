@@ -12,3 +12,29 @@
         font-weight: 700;
     }
 }
+
+/* Hardcoded Tectonic classes */
+
+.canvas {
+    position: relative;
+    line-height: 1;
+
+    .ci {
+        position: absolute;
+    }
+
+    .cr {
+        position: absolute;
+        background-color: #000;
+        color: #000;
+    }
+}
+
+.canvas-inline {
+    display: inline-block;
+}
+
+.canvas-block {
+    display: block;
+    margin: 1.5em auto;
+}

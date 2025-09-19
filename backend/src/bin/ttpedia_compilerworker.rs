@@ -345,15 +345,22 @@ impl<'a> CompileState<'a> {
         // Upload assets if requested.
 
         for asset_path in assets.drain(..) {
-            let object = format!(
-                "{}/{}",
-                self.job.id().to_string(),
-                asset_path.file_name().unwrap().to_str().unwrap()
-            );
+            let asset_filename = asset_path.file_name().unwrap().to_str().unwrap();
+            let object = format!("{}/{}", self.job.id().to_string(), asset_filename);
+
+            let content_type = if asset_filename.ends_with(".css") {
+                "text/css"
+            } else if asset_filename.ends_with(".otf") {
+                "font/otf"
+            } else {
+                "application/octet-stream"
+            };
+
             let content: minio::s3::builders::ObjectContent = asset_path.as_path().into();
 
             let resp = client
                 .put_object_content("ttpedia-sharedassets", object, content)
+                .content_type(content_type.to_owned())
                 .send()
                 .await
                 .unwrap();
@@ -407,6 +414,7 @@ impl<'a> CompileState<'a> {
 
             let resp = client
                 .put_object_content("ttpedia-html", object, content)
+                .content_type("text/html".to_owned())
                 .send()
                 .await
                 .unwrap();
