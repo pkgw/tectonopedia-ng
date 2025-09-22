@@ -251,8 +251,6 @@ impl<'a> CompileState<'a> {
 
         let out_dir = TempDir::new().expect("make tempdir");
 
-        let rrtex = ""; // TODO: TeX of resolved reference info
-
         let input = format!(
             "\\newif\\ifpassone \
             \\passonefalse \
@@ -260,7 +258,7 @@ impl<'a> CompileState<'a> {
             {}
             {}
             \\input{{postamble}}\n",
-            rrtex,
+            resp.resolved_reference_tex,
             self.content(),
         );
 

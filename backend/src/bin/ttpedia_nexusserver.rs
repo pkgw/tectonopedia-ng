@@ -10,7 +10,13 @@ use axum::{
 };
 use clap::Parser;
 use futures::lock::Mutex;
-use std::{io::Cursor, path::PathBuf, sync::Arc};
+use lmdb::{Environment, EnvironmentFlags};
+use std::{
+    fmt::Write,
+    io::{BufRead, BufReader, Cursor},
+    path::PathBuf,
+    sync::Arc,
+};
 use tectonic_engine_spx2html::AssetSpecification;
 use tokio::net::TcpListener;
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
@@ -18,6 +24,7 @@ use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use ttpedia_backend::{
     NexusPostAssetsUploadedRequest, NexusPostAssetsUploadedResponse, NexusPostPass1Request,
     NexusPostPass1Response,
+    metadata::{IndexRefFlag, Metadatum},
 };
 
 #[derive(Parser, Debug)]
@@ -109,6 +116,8 @@ async fn post_pass1_handler(
     axum::extract::State(state): axum::extract::State<NexusState>,
     Json(req): Json<NexusPostPass1Request>,
 ) -> Json<NexusPostPass1Response> {
+    // Handle the assets
+
     let mut assets = state.assets.lock().await;
 
     let pass1_assets = Cursor::new(req.assets_json.as_bytes());
@@ -133,15 +142,58 @@ async fn post_pass1_handler(
         assets.next_proposed_seqnum += 1;
     }
 
-    // TODO: retrieve index cross-reference data if needed
+    // Handle cross-reference requests
 
-    // TODO: save assets JSON to disk (state.assets_save_path)
+    let pass1_xrefs = Cursor::new(req.pedia_txt.as_bytes());
+    let meta_buf = BufReader::new(pass1_xrefs);
+    let mut rrtex = String::new();
 
-    // TODO: emit new asset files if they have changed
+    for line in meta_buf.lines() {
+        // For this pass, we can ignore everything besides references.
+
+        let line = line.expect("readline");
+
+        match Metadatum::parse(&line).expect("parse metaline") {
+            Metadatum::IndexRef {
+                index,
+                entry,
+                flags,
+            } => {
+                if (flags & IndexRefFlag::NeedsLoc as u8) != 0 {
+                    writeln!(
+                        rrtex,
+                        r"\expandafter\def\csname pedia resolve**{}**{}**loc\endcsname{{{}}}",
+                        index, entry, "LOCREF",
+                    )
+                    .unwrap();
+                }
+
+                if (flags & IndexRefFlag::NeedsText as u8) != 0 {
+                    writeln!(
+                        rrtex,
+                        r"\expandafter\def\csname pedia resolve**{}**{}**text tex\endcsname{{{}}}",
+                        index, entry, entry,
+                    )
+                    .unwrap();
+                    writeln!(
+                        rrtex,
+                        r"\expandafter\def\csname pedia resolve**{}**{}**text plain\endcsname{{{}}}",
+                        index, entry, entry,
+                    )
+                    .unwrap();
+                }
+            }
+
+            _ => {}
+        }
+    }
+
+    // All done!
 
     Json(NexusPostPass1Response {
         status: "ok".to_owned(),
         assets_json: pass2_assets,
+        resolved_reference_tex: rrtex,
         preserve_assets,
     })
 }
@@ -159,11 +211,6 @@ async fn post_assets_uploaded_handler(
 
     let mut assets = state.assets.lock().await;
 
-    println!(
-        "AU: {} {} {}",
-        req.seq_num, assets.cur_seqnum, req.bucket_key
-    );
-
     if req.seq_num > assets.cur_seqnum {
         assets.cur_bucket_key = req.bucket_key;
         assets.cur_seqnum = req.seq_num;
@@ -179,8 +226,6 @@ async fn get_asset_handler(
     Path(key): Path<String>,
 ) -> Redirect {
     let assets = state.assets.lock().await;
-
-    println!("GAH: {} {}", assets.cur_seqnum, assets.cur_bucket_key);
 
     // TODO/FIXME? Stream out of the bucket rather than redirecting?
     Redirect::temporary(&format!(

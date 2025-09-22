@@ -33,6 +33,9 @@ pub struct NexusPostPass1Response {
     /// Updated assets data, merging all processed documents.
     pub assets_json: String,
 
+    /// TeX containing resolved cross-reference information
+    pub resolved_reference_tex: String,
+
     /// If provided, the builder should upload its asset files to the bucket,
     /// and follow up with confirmation if/when it succeeds, returning the
     /// sequence number that it's been provided.
