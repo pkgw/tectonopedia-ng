@@ -1,7 +1,8 @@
 import type { Ref } from "vue";
+import type { DocumentId } from "@automerge/automerge-repo";
 
 interface EntryInfo {
-  doc_id: string,
+  doc_id: DocumentId,
   output_name: string,
   title: string,
 }
