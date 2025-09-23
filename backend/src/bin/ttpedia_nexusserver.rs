@@ -22,8 +22,8 @@ use tokio::net::TcpListener;
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 
 use ttpedia_backend::{
-    NexusPostAssetsUploadedRequest, NexusPostAssetsUploadedResponse, NexusPostPass1Request,
-    NexusPostPass1Response,
+    NexusGetEntryResponse, NexusPostAssetsUploadedRequest, NexusPostAssetsUploadedResponse,
+    NexusPostPass1Request, NexusPostPass1Response,
     metadata::{IndexRefFlag, Metadatum},
 };
 
@@ -74,6 +74,10 @@ impl Args {
             .route(
                 "/ttpapi1/nexus/asset/{key}",
                 axum::routing::get(get_asset_handler),
+            )
+            .route(
+                "/ttpapi1/nexus/entry/{name}",
+                axum::routing::get(get_entry_handler),
             )
             .layer(
                 CorsLayer::new()
@@ -232,6 +236,32 @@ async fn get_asset_handler(
         "{}/sharedassets/{}/{}",
         state.public_data_url, assets.cur_bucket_key, key
     ))
+}
+
+/// `GET /entry/{name}`: fetch needed info to render an entry page
+async fn get_entry_handler(
+    //axum::extract::State(state): axum::extract::State<NexusState>,
+    Path(name): Path<String>,
+) -> Json<NexusGetEntryResponse> {
+    println!("FIXME: fake!");
+
+    let (doc_id, output_name, title) = match name.as_ref() {
+        "dump" => ("gxhZkppeZEXBb7LXnwvHWEuavAd", "dump.html", r"\dump"),
+        "index" => ("tsquNfquQC6eLNYP7ZmgmNkbwXP", "index.html", "Index"),
+        "end" => ("25spacqQwZqMUBMkrCJB1ot1EmGq", "end.html", r"\end"),
+        "message" => ("3huRDC2cWvQhEeFxezP58NWxnMk9", "message.html", r"\message"),
+        "why-tex" => ("3XuSpKARAcsShsAFTZBJKBxwjRsz", "why-tex.html", "Why TeX?"),
+        _ => ("NOT-FOUND", "notfound.html", "Not Found"),
+    };
+
+    let (doc_id, output_name, title) =
+        (doc_id.to_owned(), output_name.to_owned(), title.to_owned());
+
+    Json(NexusGetEntryResponse {
+        doc_id,
+        output_name,
+        title,
+    })
 }
 
 #[tokio::main]

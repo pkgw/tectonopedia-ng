@@ -17,6 +17,7 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     internalDataUrl: "http://localhost:29100/ttpdata",
+    internalNexusUrl: "http://localhost:29100/ttpapi1/nexus",
     public: {
       backendApiBase: "http://localhost:29100/ttpapi1",
       repoWebsocketsUrl: "ws://localhost:29100/ttpapi1/repo/sync",

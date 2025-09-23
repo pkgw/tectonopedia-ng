@@ -2,9 +2,15 @@
   <div>
     <h1>Here’s Content</h1>
 
-    <TexContent doc-id="gxhZkppeZEXBb7LXnwvHWEuavAd" outputName="dump.html"></TexContent>
+    <ul>
+      <li><NuxtLink to="/e/dump">dump</NuxtLink></li>
+      <li><NuxtLink to="/e/end">end</NuxtLink></li>
+      <li><NuxtLink to="/e/index">index</NuxtLink></li>
+      <li><NuxtLink to="/e/message">message</NuxtLink></li>
+      <li><NuxtLink to="/e/why-tex">why-tex</NuxtLink></li>
+    </ul>
 
-    <h1>Welcome to the editor</h1>
+    <h1>Welcome to an editor</h1>
 
     <UButton loading-auto @click="onSubmit">Submit</UButton>
 

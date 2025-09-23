@@ -59,3 +59,16 @@ pub struct NexusPostAssetsUploadedRequest {
 /// The response from the Nexus server's `POST /assets_uploaded` endpoint.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct NexusPostAssetsUploadedResponse {}
+
+/// The response to the Nexus server's `GET /entry/{name}` endpoint.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct NexusGetEntryResponse {
+    /// The ID of the document providing the content.
+    pub doc_id: String,
+
+    /// The name of the output providing the content.
+    pub output_name: String,
+
+    /// The title of the entry.
+    pub title: String,
+}
