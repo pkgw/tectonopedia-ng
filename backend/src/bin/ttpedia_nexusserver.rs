@@ -143,6 +143,7 @@ impl IndexKey {
 
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq)]
 struct IndexValue {
+    pub entry: Option<String>,
     pub fragment: Option<String>,
     pub atplain: Option<String>,
     pub tex: Option<String>,
@@ -214,6 +215,7 @@ async fn post_pass1_handler(
             .expect("open db");
         let mut txn = dbenv.begin_rw_txn().expect("rw txn");
 
+        let mut current_entry = "".to_owned();
         let pass1_xrefs = Cursor::new(pedia_txt.as_bytes());
         let meta_buf = BufReader::new(pass1_xrefs);
         let mut rrtex = String::new();
@@ -235,14 +237,16 @@ async fn post_pass1_handler(
 
                     let bvalue = txn.get(db, &bkey).unwrap_or(MISSING_REF);
                     let mut fields = bvalue.split(|b| *b == 0);
-                    let loc_slice = fields.next();
+                    let entry_slice = fields.next();
+                    let fragment_slice = fields.next();
 
                     if (flags & IndexRefFlag::NeedsLoc as u8) != 0 {
-                        let loc_text = maybe_slice_to_str_or_default(loc_slice, "LOCREF");
+                        let entry_text = maybe_slice_to_str_or_default(entry_slice, "ENTRYREF");
+                        let fragment_text = maybe_slice_to_str_or_default(fragment_slice, "");
                         writeln!(
                             rrtex,
-                            r"\expandafter\def\csname pedia resolve**{}**{}**loc\endcsname{{{}}}",
-                            index, entry, loc_text,
+                            r"\expandafter\def\csname pedia resolve**{}**{}**loc\endcsname{{{}{}}}",
+                            index, entry, entry_text, fragment_text,
                         )
                         .unwrap();
                     }
@@ -275,6 +279,7 @@ async fn post_pass1_handler(
                     fragment,
                 } => {
                     let val = defs.entry(IndexKey::new(index, entry)).or_default();
+                    val.entry = Some(current_entry.clone());
                     val.fragment = Some(fragment.to_string());
                 }
 
@@ -289,7 +294,9 @@ async fn post_pass1_handler(
                     val.tex = Some(tex.to_string());
                 }
 
-                Metadatum::Output(_) => {}
+                Metadatum::Output(o) => {
+                    current_entry = o.strip_prefix("entry-").and_then(|s| s.strip_suffix(".html")).unwrap_or_default().to_owned();
+                }
             }
         }
 
@@ -301,7 +308,9 @@ async fn post_pass1_handler(
             bkey.push(0);
             bkey.append(&mut key.entry.into_bytes());
 
-            let mut bvalue = value.fragment.unwrap_or_default().into_bytes();
+            let mut bvalue = value.entry.unwrap_or_default().into_bytes();
+            bvalue.push(0);
+            bvalue.append(&mut value.fragment.unwrap_or_default().into_bytes());
             bvalue.push(0);
             bvalue.append(&mut value.atplain.unwrap_or_default().into_bytes());
             bvalue.push(0);
