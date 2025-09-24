@@ -1,5 +1,5 @@
 <template>
-  <div class="tex" v-html="htmlContent" />
+  <div class="tex prose" v-html="htmlContent" />
 </template>
 
 <style>

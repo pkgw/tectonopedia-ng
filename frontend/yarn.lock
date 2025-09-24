@@ -2979,6 +2979,17 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@tailwindcss/typography@npm:^0.5.18":
+  version: 0.5.18
+  resolution: "@tailwindcss/typography@npm:0.5.18"
+  dependencies:
+    postcss-selector-parser: "npm:6.0.10"
+  peerDependencies:
+    tailwindcss: "*"
+  checksum: 10c0/bf136f16c59fab8afb9cb21652767790dd800eacc1e2e6f9b3572c3a2c23befff3f6a649904ea8ed8f02983145b48c4fa96d3845e5178c38757a16692197adec
+  languageName: node
+  linkType: hard
+
 "@tailwindcss/vite@npm:^4.1.12":
   version: 4.1.13
   resolution: "@tailwindcss/vite@npm:4.1.13"
@@ -8537,6 +8548,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+"postcss-selector-parser@npm:6.0.10":
+  version: 6.0.10
+  resolution: "postcss-selector-parser@npm:6.0.10"
+  dependencies:
+    cssesc: "npm:^3.0.0"
+    util-deprecate: "npm:^1.0.2"
+  checksum: 10c0/a0b27c5e3f7604c8dc7cd83f145fdd7b21448e0d86072da99e0d78e536ba27aa9db2d42024c50aa530408ee517c4bdc0260529e1afb56608f9a82e839c207e82
+  languageName: node
+  linkType: hard
+
 "postcss-selector-parser@npm:^6.0.15":
   version: 6.1.2
   resolution: "postcss-selector-parser@npm:6.1.2"
@@ -9571,7 +9592,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"tailwindcss@npm:4.1.13, tailwindcss@npm:^4.1.12":
+"tailwindcss@npm:4.1.13, tailwindcss@npm:^4.1.12, tailwindcss@npm:^4.1.13":
   version: 4.1.13
   resolution: "tailwindcss@npm:4.1.13"
   checksum: 10c0/2b80b4b11463818fd16063b7cc13fd0f6e18d7e3c3e54bbdc98742981be807884addb1dd657bc6816cb4085197b7d583f5064f619e1039a54221ffa36b7ed4c0
@@ -9739,11 +9760,13 @@ __metadata:
     "@codemirror/view": "npm:^6.38.2"
     "@nuxt/eslint": "npm:1.9.0"
     "@nuxt/ui": "npm:3.3.3"
+    "@tailwindcss/typography": "npm:^0.5.18"
     codemirror: "npm:^6.0.2"
     eslint: "npm:^9.0.0"
     idb: "npm:^8.0.3"
     nuxt: "npm:^4.1.1"
     style-mod: "npm:^4.1.2"
+    tailwindcss: "npm:^4.1.13"
     typescript: "npm:^5.6.3"
     vite: "npm:^7.1.4"
     vite-plugin-top-level-await: "npm:^1.6.0"

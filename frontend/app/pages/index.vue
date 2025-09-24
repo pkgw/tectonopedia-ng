@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div class="prose">
     <h1>Index Page</h1>
 
     <ul>
