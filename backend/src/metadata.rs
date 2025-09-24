@@ -60,8 +60,8 @@ pub enum Metadatum<'a> {
         /// The full TeX representation of the entry.
         tex: &'a str,
 
-        /// The plain-text representation of the entry.
-        plain: &'a str,
+        /// The "at-plain" representation of the entry.
+        atplain: &'a str,
     },
 }
 
@@ -133,7 +133,7 @@ impl<'a> Metadatum<'a> {
                     index: terms[0],
                     entry: terms[1],
                     tex: terms[2],
-                    plain: terms[3],
+                    atplain: terms[3],
                 })
             }
 

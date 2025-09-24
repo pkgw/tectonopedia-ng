@@ -10,8 +10,9 @@ use axum::{
 };
 use clap::Parser;
 use futures::lock::Mutex;
-use lmdb::{Environment, EnvironmentFlags};
+use lmdb::{Environment, EnvironmentFlags, Transaction};
 use std::{
+    collections::HashMap,
     fmt::Write,
     io::{BufRead, BufReader, Cursor},
     path::PathBuf,
@@ -26,6 +27,8 @@ use ttpedia_backend::{
     NexusPostPass1Request, NexusPostPass1Response,
     metadata::{IndexRefFlag, Metadatum},
 };
+
+const DB_FORMAT_SERIAL: usize = 0;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -52,6 +55,14 @@ impl Args {
         //    cur_assets.add_from_saved(saved)?;
         //}
 
+        let mut db_path = self.data_root.clone();
+        db_path.push(format!("nexus_state_v{DB_FORMAT_SERIAL}.lmdb"));
+        let env = Environment::new()
+            .set_flags(EnvironmentFlags::NO_SUB_DIR)
+            .set_max_dbs(4)
+            .set_map_size(268_435_456)
+            .open(&db_path)?;
+
         let state = NexusState {
             assets: Arc::new(Mutex::new(AssetState {
                 cur_assets,
@@ -59,6 +70,7 @@ impl Args {
                 cur_bucket_key: "FIXME-get-from-storage".to_owned(),
                 next_proposed_seqnum: 1,
             })),
+            db: Arc::new(env),
             public_data_url,
         };
 
@@ -110,7 +122,48 @@ struct AssetState {
 #[derive(Clone)]
 struct NexusState {
     assets: Arc<Mutex<AssetState>>,
+    db: Arc<Environment>,
     public_data_url: String,
+}
+
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+struct IndexKey {
+    pub index: String,
+    pub entry: String,
+}
+
+impl IndexKey {
+    fn new<S1: ToString, S2: ToString>(index: S1, entry: S2) -> Self {
+        IndexKey {
+            index: index.to_string(),
+            entry: entry.to_string(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, Eq, Hash, PartialEq)]
+struct IndexValue {
+    pub fragment: Option<String>,
+    pub atplain: Option<String>,
+    pub tex: Option<String>,
+}
+
+const INDEX_DEF_MARKER: u8 = 0x80;
+const MISSING_REF: &[u8] = &[0, 0];
+
+fn maybe_slice_to_str_or_default<'a>(b: Option<&'a [u8]>, default: &'a str) -> &'a str {
+    let Some(b) = b else {
+        return default;
+    };
+
+    if b.is_empty() {
+        return default;
+    }
+
+    match str::from_utf8(b) {
+        Ok(s) => s,
+        Err(_) => default,
+    }
 }
 
 /// `POST /pass1`: invoked by a TeX compiler worker after its first compilation
@@ -146,51 +199,122 @@ async fn post_pass1_handler(
         assets.next_proposed_seqnum += 1;
     }
 
-    // Handle cross-reference requests
+    // Handle cross-references
+    //
+    // TBD: do we want to handle definitions after pass 2? Maybe? But if we do
+    // them here, we can avoid having to re-send the `pedia.txt` data after that
+    // pass completes ...
 
-    let pass1_xrefs = Cursor::new(req.pedia_txt.as_bytes());
-    let meta_buf = BufReader::new(pass1_xrefs);
-    let mut rrtex = String::new();
+    let pedia_txt = req.pedia_txt;
+    let dbenv = state.db.clone();
 
-    for line in meta_buf.lines() {
-        // For this pass, we can ignore everything besides references.
+    let rrtex = tokio::task::spawn_blocking(move || -> Result<String> {
+        let db = dbenv
+            .create_db(Some("index"), Default::default())
+            .expect("open db");
+        let mut txn = dbenv.begin_rw_txn().expect("rw txn");
 
-        let line = line.expect("readline");
+        let pass1_xrefs = Cursor::new(pedia_txt.as_bytes());
+        let meta_buf = BufReader::new(pass1_xrefs);
+        let mut rrtex = String::new();
+        let mut defs: HashMap<IndexKey, IndexValue> = Default::default();
 
-        match Metadatum::parse(&line).expect("parse metaline") {
-            Metadatum::IndexRef {
-                index,
-                entry,
-                flags,
-            } => {
-                if (flags & IndexRefFlag::NeedsLoc as u8) != 0 {
-                    writeln!(
-                        rrtex,
-                        r"\expandafter\def\csname pedia resolve**{}**{}**loc\endcsname{{{}}}",
-                        index, entry, "LOCREF",
-                    )
-                    .unwrap();
+        for line in meta_buf.lines() {
+            let line = line.expect("readline");
+
+            match Metadatum::parse(&line).expect("parse metaline") {
+                Metadatum::IndexRef {
+                    index,
+                    entry,
+                    flags,
+                } => {
+                    let mut bkey = vec![INDEX_DEF_MARKER];
+                    bkey.extend_from_slice(index.as_bytes());
+                    bkey.push(0);
+                    bkey.extend_from_slice(entry.as_bytes());
+
+                    let bvalue = txn.get(db, &bkey).unwrap_or(MISSING_REF);
+                    let mut fields = bvalue.split(|b| *b == 0);
+                    let loc_slice = fields.next();
+
+                    if (flags & IndexRefFlag::NeedsLoc as u8) != 0 {
+                        let loc_text = maybe_slice_to_str_or_default(loc_slice, "LOCREF");
+                        writeln!(
+                            rrtex,
+                            r"\expandafter\def\csname pedia resolve**{}**{}**loc\endcsname{{{}}}",
+                            index, entry, loc_text,
+                        )
+                        .unwrap();
+                    }
+
+                    let atplain_slice = fields.next();
+                    let tex_slice = fields.next();
+
+                    if (flags & IndexRefFlag::NeedsText as u8) != 0 {
+                        let atplain_text = maybe_slice_to_str_or_default(atplain_slice, entry);
+                        let tex_text = maybe_slice_to_str_or_default(tex_slice, entry);
+
+                        writeln!(
+                            rrtex,
+                            r"\expandafter\def\csname pedia resolve**{}**{}**text tex\endcsname{{{}}}",
+                            index, entry, tex_text,
+                        )
+                        .unwrap();
+                        writeln!(
+                            rrtex,
+                            r"\expandafter\def\csname pedia resolve**{}**{}**text plain\endcsname{{{}}}",
+                            index, entry, atplain_text,
+                        )
+                        .unwrap();
+                    }
                 }
 
-                if (flags & IndexRefFlag::NeedsText as u8) != 0 {
-                    writeln!(
-                        rrtex,
-                        r"\expandafter\def\csname pedia resolve**{}**{}**text tex\endcsname{{{}}}",
-                        index, entry, entry,
-                    )
-                    .unwrap();
-                    writeln!(
-                        rrtex,
-                        r"\expandafter\def\csname pedia resolve**{}**{}**text plain\endcsname{{{}}}",
-                        index, entry, entry,
-                    )
-                    .unwrap();
+                Metadatum::IndexDef {
+                    index,
+                    entry,
+                    fragment,
+                } => {
+                    let val = defs.entry(IndexKey::new(index, entry)).or_default();
+                    val.fragment = Some(fragment.to_string());
                 }
+
+                Metadatum::IndexText {
+                    index,
+                    entry,
+                    tex,
+                    atplain,
+                } => {
+                    let val = defs.entry(IndexKey::new(index, entry)).or_default();
+                    val.atplain = Some(atplain.to_string());
+                    val.tex = Some(tex.to_string());
+                }
+
+                Metadatum::Output(_) => {}
             }
-
-            _ => {}
         }
-    }
+
+        // Record new index definitions in the database
+
+        for (key, value) in defs.drain() {
+            let mut bkey = vec![INDEX_DEF_MARKER];
+            bkey.append(&mut key.index.into_bytes());
+            bkey.push(0);
+            bkey.append(&mut key.entry.into_bytes());
+
+            let mut bvalue = value.fragment.unwrap_or_default().into_bytes();
+            bvalue.push(0);
+            bvalue.append(&mut value.atplain.unwrap_or_default().into_bytes());
+            bvalue.push(0);
+            bvalue.append(&mut value.tex.unwrap_or_default().into_bytes());
+
+            txn.put(db, &bkey, &bvalue, Default::default())
+                .expect("put");
+        }
+
+        txn.commit().expect("commit txn");
+
+        Ok(rrtex)
+    }).await.expect("join").expect("handled refs");
 
     // All done!
 
@@ -243,7 +367,7 @@ async fn get_entry_handler(
     //axum::extract::State(state): axum::extract::State<NexusState>,
     Path(name): Path<String>,
 ) -> Json<NexusGetEntryResponse> {
-    println!("FIXME: fake!");
+    println!("FIXME: fake getentry mapping!");
 
     let (doc_id, output_name, title) = match name.as_ref() {
         "dump" => ("gxhZkppeZEXBb7LXnwvHWEuavAd", "dump.html", r"\dump"),
